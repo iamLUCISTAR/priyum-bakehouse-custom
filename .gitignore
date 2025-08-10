@@ -164,6 +164,18 @@ apply-migrations-direct.js
 run-migration.js
 test-delivery-date.js
 recreate-database.sql
+fix-storage-policies.js
+fix-storage-rls.js
+fix-storage-supabase.js
+check-products-table.js
+check-order-items-table.js
+
+# Backup scripts and data
+backup-database.js
+restore-database.js
+list-backups.js
+backups/
+BACKUP_README.md
 
 # Environment variables
 .env.local
