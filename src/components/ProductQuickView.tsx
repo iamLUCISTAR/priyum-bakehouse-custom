@@ -131,31 +131,27 @@ const ProductQuickView = ({ product, contactInfo, children }: ProductQuickViewPr
                 Contact us directly to place your order for this delicious treat!
               </p>
               <div className="flex flex-col gap-3">
-                {contactInfo?.phone && (
-                  <Button
-                    asChild
-                    size="lg"
-                    className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white"
-                  >
-                    <a href={`https://wa.me/${contactInfo.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
-                      <Phone className="h-4 w-4 mr-2" />
-                      WhatsApp Now
-                    </a>
-                  </Button>
-                )}
-                {contactInfo?.email && (
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="lg"
-                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                  >
-                    <a href={`mailto:${contactInfo.email}`}>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Email Us
-                    </a>
-                  </Button>
-                )}
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white"
+                >
+                  <a href="https://wa.me/919677349169" target="_blank" rel="noopener noreferrer">
+                    <Phone className="h-4 w-4 mr-2" />
+                    WhatsApp Now
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  <a href="mailto:priyum.orders@gmail.com">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Email Us
+                  </a>
+                </Button>
               </div>
             </div>
           </div>
