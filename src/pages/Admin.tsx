@@ -42,6 +42,33 @@ interface Order {
   total: number;
   status: string;
   order_date: string;
+  subtotal?: number;
+  shipping_charges?: number;
+  discount_amount?: number;
+  custom_order_date?: string;
+  custom_invoice_date?: string;
+  delivery_date?: string;
+}
+
+interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string;
+  product_name: string;
+  product_price: number;
+  quantity: number;
+  total: number;
+  weight?: number;
+  weight_unit?: string;
+}
+
+interface InvoiceSettings {
+  businessName: string;
+  businessSubtitle: string;
+  phone: string;
+  email: string;
+  orderDate: string;
+  invoiceDate: string;
 }
 
 interface UserProfile {
@@ -97,6 +124,7 @@ export default function Admin() {
     fetchProducts();
     fetchOrders();
     fetchUsers();
+    loadInvoiceSettings();
   }, []);
 
   const checkAuth = async () => {
@@ -491,18 +519,39 @@ export default function Admin() {
   };
 
   const [orderDetailsDialog, setOrderDetailsDialog] = useState(false);
-  const [orderDetails, setOrderDetails] = useState<{order: Order | null, items: any[]}>({order: null, items: []});
+  const [orderDetails, setOrderDetails] = useState<{order: Order | null, items: OrderItem[]}>({order: null, items: []});
+  const [isEditOrderOpen, setIsEditOrderOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editingOrderItems, setEditingOrderItems] = useState<OrderItem[]>([]);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings>({
+    businessName: "❤️ PRIYUM",
+    businessSubtitle: "Cakes & Bakes",
+    phone: "+91 98765 43210",
+    email: "orders@priyumbakes.com",
+    orderDate: new Date().toLocaleDateString(),
+    invoiceDate: new Date().toLocaleDateString()
+  });
 
   const handleViewOrderDetails = async (orderId: string) => {
     try {
-      const { data: orderItems, error } = await supabase
+      // Fetch complete order details
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Fetch order items
+      const { data: orderItems, error: itemsError } = await supabase
         .from('order_items')
         .select('*')
         .eq('order_id', orderId);
 
-      if (error) throw error;
+      if (itemsError) throw itemsError;
 
-      const order = orders.find(o => o.id === orderId);
       setOrderDetails({order, items: orderItems || []});
       setOrderDetailsDialog(true);
     } catch (error) {
@@ -546,6 +595,96 @@ export default function Admin() {
       toast({
         title: "Error",
         description: "Failed to delete order",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditOrder = async (orderId: string) => {
+    try {
+      // Fetch order details
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Fetch order items
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', orderId);
+
+      if (itemsError) throw itemsError;
+
+      setEditingOrder(order);
+      setEditingOrderItems(orderItems || []);
+      setIsEditOrderOpen(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load order for editing",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateOrder = async () => {
+    if (!editingOrder) return;
+
+    try {
+      // Update the order
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({
+          customer_name: editingOrder.customer_name,
+          customer_email: editingOrder.customer_email,
+          customer_phone: editingOrder.customer_phone,
+          customer_address: editingOrder.customer_address,
+          subtotal: editingOrder.subtotal,
+          shipping_charges: editingOrder.shipping_charges,
+          discount_amount: editingOrder.discount_amount,
+          total: editingOrder.total,
+          custom_order_date: editingOrder.custom_order_date,
+          custom_invoice_date: editingOrder.custom_invoice_date,
+          delivery_date: editingOrder.delivery_date
+        })
+        .eq('id', editingOrder.id);
+
+      if (orderError) throw orderError;
+
+      // Update order items
+      for (const item of editingOrderItems) {
+        const { error: itemError } = await supabase
+          .from('order_items')
+          .update({
+            product_name: item.product_name,
+            product_price: item.product_price,
+            quantity: item.quantity,
+            total: item.total,
+            weight: item.weight,
+            weight_unit: item.weight_unit
+          })
+          .eq('id', item.id);
+
+        if (itemError) throw itemError;
+      }
+
+      toast({
+        title: "Success",
+        description: "Order updated successfully",
+      });
+
+      setIsEditOrderOpen(false);
+      setEditingOrder(null);
+      setEditingOrderItems([]);
+      fetchOrders();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update order",
         variant: "destructive",
       });
     }
@@ -635,6 +774,173 @@ export default function Admin() {
   };
 
   const stats = getTotalStats();
+
+  const loadInvoiceSettings = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from('invoice_settings')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading invoice settings:', error);
+        return;
+      }
+
+      if (data) {
+        setInvoiceSettings({
+          businessName: data.business_name,
+          businessSubtitle: data.business_subtitle,
+          phone: data.phone,
+          email: data.email,
+          orderDate: new Date().toISOString().split('T')[0],
+          invoiceDate: new Date().toISOString().split('T')[0]
+        });
+      }
+    } catch (error) {
+      console.error('Error loading invoice settings:', error);
+    }
+  };
+
+  const generateOrderPDF = async (order: Order, items: OrderItem[]) => {
+    setIsGeneratingPDF(true);
+
+    try {
+      // Dynamic import for jsPDF and html2canvas
+      const { default: jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
+      
+      // Create a temporary HTML element for PDF generation
+      const invoiceHtml = document.createElement('div');
+      invoiceHtml.innerHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 40px; background: white; width: 800px;">
+          <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #d4a574; padding-bottom: 20px;">
+            <div style="color: #8b4513; font-size: 32px; font-weight: bold; margin-bottom: 5px;">${invoiceSettings.businessName}</div>
+            <div style="color: #d4a574; font-size: 14px;">${invoiceSettings.businessSubtitle}</div>
+            <div style="margin-top: 10px; color: #666; font-size: 12px;">
+              📞 ${invoiceSettings.phone} | 📧 ${invoiceSettings.email}
+            </div>
+            <div style="margin-top: 10px; font-size: 14px;">Invoice #INV-${order.id.slice(0, 8)}</div>
+            <div style="font-size: 12px; color: #666;">Invoice Date: ${order.custom_invoice_date || new Date().toISOString().split('T')[0]}</div>
+            <div style="font-size: 12px; color: #666;">Order Date: ${order.custom_order_date || new Date().toISOString().split('T')[0]}</div>
+          </div>
+          
+          <div style="margin: 20px 0; padding: 15px; background: #f9f7f4; border-radius: 5px;">
+            <h3 style="color: #8b4513; margin-bottom: 10px;">Customer Details:</h3>
+            <p style="margin: 5px 0;"><strong>Name:</strong> ${order.customer_name}</p>
+            <p style="margin: 5px 0;"><strong>Phone:</strong> ${order.customer_phone || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Address:</strong> ${order.customer_address || 'N/A'}</p>
+            ${order.delivery_date ? `<p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${order.delivery_date}</p>` : ''}
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <thead>
+              <tr style="background: #d4a574; color: white;">
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Item</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Weight</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Quantity</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Price</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(item => `
+                <tr>
+                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.product_name}</td>
+                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.weight ? `${item.weight} ${item.weight_unit}` : 'N/A'}</td>
+                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
+                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">₹${item.product_price}</td>
+                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">₹${item.total}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div style="margin-top: 30px; text-align: right;">
+            <div style="margin: 5px 0;">
+              <span>Subtotal: ₹${order.subtotal || 0}</span>
+            </div>
+            <div style="margin: 5px 0;">
+              <span>Shipping: ₹${order.shipping_charges || 0}</span>
+            </div>
+            ${order.discount_amount && order.discount_amount > 0 ? `
+              <div style="margin: 5px 0;">
+                <span>Discount: -₹${order.discount_amount}</span>
+              </div>
+            ` : ''}
+            <div style="font-size: 18px; font-weight: bold; color: #8b4513; border-top: 2px solid #d4a574; padding-top: 10px; margin-top: 10px;">
+              Total Amount: ₹${order.total}
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
+            <p>Thank you for choosing PRIYUM Cakes & Bakes!</p>
+            <p>Order Date: ${new Date(order.order_date).toLocaleDateString()}</p>
+            <p>Made with ❤️ for delicious moments</p>
+          </div>
+        </div>
+      `;
+
+      // Temporarily add to DOM for rendering
+      invoiceHtml.style.position = 'absolute';
+      invoiceHtml.style.left = '-9999px';
+      document.body.appendChild(invoiceHtml);
+
+      // Convert to canvas then PDF
+      const canvas = await html2canvas(invoiceHtml, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Clean up
+      if (invoiceHtml.parentNode) {
+        invoiceHtml.parentNode.removeChild(invoiceHtml);
+      }
+
+      // Download PDF with customer name in filename
+      const safeCustomerName = order.customer_name.replace(/[^a-zA-Z0-9]/g, '-');
+      pdf.save(`${safeCustomerName}-invoice-${order.id.slice(0, 8)}.pdf`);
+
+      toast({
+        title: "PDF Invoice Generated! 🎉",
+        description: "Invoice downloaded successfully.",
+      });
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF invoice. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-warm">
@@ -1047,6 +1353,13 @@ export default function Admin() {
                              >
                                View Details
                              </Button>
+                             <Button 
+                               variant="outline" 
+                               size="sm"
+                               onClick={() => handleEditOrder(order.id)}
+                             >
+                               <Edit className="w-4 h-4" />
+                             </Button>
                              <Button
                                variant="outline"
                                size="sm"
@@ -1387,13 +1700,30 @@ export default function Admin() {
 
         {/* Order Details Dialog */}
         <Dialog open={orderDetailsDialog} onOpenChange={setOrderDetailsDialog}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle>Order Details</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               {orderDetails.order && (
                 <>
+                  <div className="flex justify-end space-x-2 mb-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleEditOrder(orderDetails.order!.id)}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Order
+                    </Button>
+                    <Button
+                      onClick={() => generateOrderPDF(orderDetails.order!, orderDetails.items)}
+                      disabled={isGeneratingPDF}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      {isGeneratingPDF ? "Generating..." : "Download PDF"}
+                    </Button>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Customer Name</Label>
@@ -1410,6 +1740,34 @@ export default function Admin() {
                     <div>
                       <Label>Total Amount</Label>
                       <p className="text-foreground">₹{orderDetails.order.total}</p>
+                    </div>
+                    <div>
+                      <Label>Subtotal</Label>
+                      <p className="text-foreground">₹{orderDetails.order.subtotal || 0}</p>
+                    </div>
+                    <div>
+                      <Label>Shipping Charges</Label>
+                      <p className="text-foreground">₹{orderDetails.order.shipping_charges || 0}</p>
+                    </div>
+                    <div>
+                      <Label>Discount Amount</Label>
+                      <p className="text-foreground">₹{orderDetails.order.discount_amount || 0}</p>
+                    </div>
+                    <div>
+                      <Label>Order Status</Label>
+                      <Badge variant="outline">{orderDetails.order.status}</Badge>
+                    </div>
+                    <div>
+                      <Label>Order Date</Label>
+                      <p className="text-foreground">{orderDetails.order.custom_order_date || new Date(orderDetails.order.order_date).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <Label>Invoice Date</Label>
+                      <p className="text-foreground">{orderDetails.order.custom_invoice_date || new Date().toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <Label>Delivery Date</Label>
+                      <p className="text-foreground">{orderDetails.order.delivery_date || 'Not specified'}</p>
                     </div>
                   </div>
                   
@@ -1435,7 +1793,7 @@ export default function Admin() {
                           {orderDetails.items.map((item, index) => (
                             <TableRow key={index}>
                               <TableCell>{item.product_name}</TableCell>
-                              <TableCell>{item.weight} {item.weight_unit}</TableCell>
+                              <TableCell>{item.weight ? `${item.weight} ${item.weight_unit}` : 'N/A'}</TableCell>
                               <TableCell>{item.quantity}</TableCell>
                               <TableCell>₹{item.product_price}</TableCell>
                               <TableCell>₹{item.total}</TableCell>
@@ -1448,6 +1806,278 @@ export default function Admin() {
                 </>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Order Dialog */}
+        <Dialog open={isEditOrderOpen} onOpenChange={setIsEditOrderOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Order</DialogTitle>
+            </DialogHeader>
+            {editingOrder && (
+              <div className="space-y-6">
+                {/* Customer Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="editCustomerName">Customer Name</Label>
+                    <Input
+                      id="editCustomerName"
+                      value={editingOrder.customer_name}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, customer_name: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editCustomerEmail">Customer Email</Label>
+                    <Input
+                      id="editCustomerEmail"
+                      type="email"
+                      value={editingOrder.customer_email}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, customer_email: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editCustomerPhone">Phone</Label>
+                    <Input
+                      id="editCustomerPhone"
+                      value={editingOrder.customer_phone || ''}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, customer_phone: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editOrderStatus">Status</Label>
+                    <Select
+                      value={editingOrder.status}
+                      onValueChange={(value) => setEditingOrder(prev => prev ? { ...prev, status: value } : null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="preparing">Preparing</SelectItem>
+                        <SelectItem value="ready">Ready</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="editOrderDate">Order Date</Label>
+                    <Input
+                      id="editOrderDate"
+                      type="date"
+                      value={editingOrder.custom_order_date || new Date(editingOrder.order_date).toISOString().split('T')[0]}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, custom_order_date: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editInvoiceDate">Invoice Date</Label>
+                    <Input
+                      id="editInvoiceDate"
+                      type="date"
+                      value={editingOrder.custom_invoice_date || new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, custom_invoice_date: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editDeliveryDate">Delivery Date</Label>
+                    <Input
+                      id="editDeliveryDate"
+                      type="date"
+                      value={editingOrder.delivery_date || ''}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, delivery_date: e.target.value } : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editShippingCharges">Shipping Charges (₹)</Label>
+                    <Input
+                      id="editShippingCharges"
+                      type="number"
+                      min="0"
+                      value={editingOrder.shipping_charges || 0}
+                      onChange={(e) => {
+                        const shipping = parseFloat(e.target.value) || 0;
+                        const subtotal = editingOrder.subtotal || 0;
+                        const discount = editingOrder.discount_amount || 0;
+                        const total = subtotal + shipping - discount;
+                        setEditingOrder(prev => prev ? { 
+                          ...prev, 
+                          shipping_charges: shipping,
+                          total: total
+                        } : null);
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editDiscountAmount">Discount Amount (₹)</Label>
+                    <Input
+                      id="editDiscountAmount"
+                      type="number"
+                      min="0"
+                      value={editingOrder.discount_amount || 0}
+                      onChange={(e) => {
+                        const discount = parseFloat(e.target.value) || 0;
+                        const subtotal = editingOrder.subtotal || 0;
+                        const shipping = editingOrder.shipping_charges || 0;
+                        const total = subtotal + shipping - discount;
+                        setEditingOrder(prev => prev ? { 
+                          ...prev, 
+                          discount_amount: discount,
+                          total: total
+                        } : null);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="editCustomerAddress">Address</Label>
+                  <Textarea
+                    id="editCustomerAddress"
+                    value={editingOrder.customer_address || ''}
+                    onChange={(e) => setEditingOrder(prev => prev ? { ...prev, customer_address: e.target.value } : null)}
+                    rows={3}
+                  />
+                </div>
+
+                {/* Order Items */}
+                <div>
+                  <Label>Order Items</Label>
+                  <div className="space-y-2">
+                    {editingOrderItems.map((item, index) => (
+                      <div key={item.id} className="grid grid-cols-6 gap-2 p-3 border rounded">
+                        <div>
+                          <Label className="text-xs">Product Name</Label>
+                          <Input
+                            value={item.product_name}
+                            onChange={(e) => {
+                              const updated = [...editingOrderItems];
+                              updated[index].product_name = e.target.value;
+                              setEditingOrderItems(updated);
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Weight</Label>
+                          <Input
+                            type="number"
+                            value={item.weight || ''}
+                            onChange={(e) => {
+                              const updated = [...editingOrderItems];
+                              updated[index].weight = parseFloat(e.target.value) || null;
+                              setEditingOrderItems(updated);
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Unit</Label>
+                          <Input
+                            value={item.weight_unit || ''}
+                            onChange={(e) => {
+                              const updated = [...editingOrderItems];
+                              updated[index].weight_unit = e.target.value;
+                              setEditingOrderItems(updated);
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Quantity</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const quantity = parseInt(e.target.value) || 1;
+                              const updated = [...editingOrderItems];
+                              updated[index].quantity = quantity;
+                              updated[index].total = item.product_price * quantity;
+                              setEditingOrderItems(updated);
+                              
+                              // Recalculate order totals
+                              const newSubtotal = updated.reduce((sum, i) => sum + i.total, 0);
+                              const shipping = editingOrder.shipping_charges || 0;
+                              const discount = editingOrder.discount_amount || 0;
+                              const newTotal = newSubtotal + shipping - discount;
+                              setEditingOrder(prev => prev ? { 
+                                ...prev, 
+                                subtotal: newSubtotal,
+                                total: newTotal
+                              } : null);
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Price (₹)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.product_price}
+                            onChange={(e) => {
+                              const price = parseFloat(e.target.value) || 0;
+                              const updated = [...editingOrderItems];
+                              updated[index].product_price = price;
+                              updated[index].total = price * item.quantity;
+                              setEditingOrderItems(updated);
+                              
+                              // Recalculate order totals
+                              const newSubtotal = updated.reduce((sum, i) => sum + i.total, 0);
+                              const shipping = editingOrder.shipping_charges || 0;
+                              const discount = editingOrder.discount_amount || 0;
+                              const newTotal = newSubtotal + shipping - discount;
+                              setEditingOrder(prev => prev ? { 
+                                ...prev, 
+                                subtotal: newSubtotal,
+                                total: newTotal
+                              } : null);
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Total (₹)</Label>
+                          <Input
+                            value={item.total}
+                            disabled
+                            className="bg-muted"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Order Summary */}
+                <div className="border-t pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Subtotal</Label>
+                      <p className="text-lg font-medium">₹{editingOrder.subtotal || 0}</p>
+                    </div>
+                    <div>
+                      <Label>Shipping</Label>
+                      <p className="text-lg font-medium">₹{editingOrder.shipping_charges || 0}</p>
+                    </div>
+                    <div>
+                      <Label>Discount</Label>
+                      <p className="text-lg font-medium">₹{editingOrder.discount_amount || 0}</p>
+                    </div>
+                    <div>
+                      <Label>Total</Label>
+                      <p className="text-xl font-bold text-primary">₹{editingOrder.total}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setIsEditOrderOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleUpdateOrder}>
+                    Update Order
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 
