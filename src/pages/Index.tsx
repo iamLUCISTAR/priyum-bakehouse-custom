@@ -414,8 +414,8 @@ const Index = () => {
         user_id: user.id,
         status: 'pending',
         custom_order_date: customerDetails.orderDate,
-        custom_invoice_date: customerDetails.invoiceDate
-        // delivery_date: customerDetails.deliveryDate  // Temporarily commented out until migration is applied
+        custom_invoice_date: customerDetails.invoiceDate,
+        delivery_date: customerDetails.deliveryDate
       };
 
       const { data: order, error: orderError } = await supabase
@@ -488,7 +488,7 @@ const Index = () => {
             total,
             orderDate: customerDetails.orderDate,
             invoiceDate: customerDetails.invoiceDate,
-            // deliveryDate: customerDetails.deliveryDate,  // Temporarily commented out until migration is applied
+            deliveryDate: customerDetails.deliveryDate,
             invoiceSettings,
             adminEmail: user.email
           }
