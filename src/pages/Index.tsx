@@ -58,6 +58,8 @@ interface CustomerDetails {
   notes: string;
   orderDate: string;
   invoiceDate: string;
+  deliveryDate: string;
+  shippingCharge: number;
 }
 
 const sampleProducts: Product[] = [
@@ -122,7 +124,9 @@ const Index = () => {
     address: "",
     notes: "",
     orderDate: new Date().toISOString().split('T')[0],
-    invoiceDate: new Date().toISOString().split('T')[0]
+    invoiceDate: new Date().toISOString().split('T')[0],
+    deliveryDate: new Date().toISOString().split('T')[0],
+    shippingCharge: 0
   });
   const [discount, setDiscount] = useState<number>(0);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
@@ -289,7 +293,7 @@ const Index = () => {
   }
 
   const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shippingCharge = subtotal < 499 ? 50 : 0;
+  const shippingCharge = customerDetails.shippingCharge;
   const discountAmount = (subtotal * discount) / 100;
   const total = subtotal + shippingCharge - discountAmount;
 
@@ -369,7 +373,10 @@ const Index = () => {
   };
 
   const handleInputChange = (field: keyof CustomerDetails, value: string) => {
-    setCustomerDetails(prev => ({ ...prev, [field]: value }));
+    setCustomerDetails(prev => ({ 
+      ...prev, 
+      [field]: field === 'shippingCharge' ? parseFloat(value) || 0 : value 
+    }));
   };
 
   const generateInvoice = async () => {
@@ -408,6 +415,7 @@ const Index = () => {
         status: 'pending',
         custom_order_date: customerDetails.orderDate,
         custom_invoice_date: customerDetails.invoiceDate
+        // delivery_date: customerDetails.deliveryDate  // Temporarily commented out until migration is applied
       };
 
       const { data: order, error: orderError } = await supabase
@@ -480,6 +488,7 @@ const Index = () => {
             total,
             orderDate: customerDetails.orderDate,
             invoiceDate: customerDetails.invoiceDate,
+            // deliveryDate: customerDetails.deliveryDate,  // Temporarily commented out until migration is applied
             invoiceSettings,
             adminEmail: user.email
           }
@@ -513,6 +522,7 @@ const Index = () => {
             <p style="margin: 5px 0;"><strong>Name:</strong> ${customerDetails.name}</p>
             <p style="margin: 5px 0;"><strong>Phone:</strong> ${customerDetails.phone}</p>
             <p style="margin: 5px 0;"><strong>Address:</strong> ${customerDetails.address}</p>
+            <p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${customerDetails.deliveryDate}</p>
             ${customerDetails.notes ? `<p style="margin: 5px 0;"><strong>Notes:</strong> ${customerDetails.notes}</p>` : ''}
           </div>
           
@@ -615,7 +625,9 @@ const Index = () => {
         address: "", 
         notes: "",
         orderDate: new Date().toISOString().split('T')[0],
-        invoiceDate: new Date().toISOString().split('T')[0]
+        invoiceDate: new Date().toISOString().split('T')[0],
+        deliveryDate: new Date().toISOString().split('T')[0],
+        shippingCharge: 0
       });
       setDiscount(0);
 
@@ -904,6 +916,26 @@ const Index = () => {
                     onChange={(e) => handleInputChange("invoiceDate", e.target.value)}
                   />
                 </div>
+                <div>
+                  <Label htmlFor="deliveryDate">Delivery Date</Label>
+                  <Input
+                    id="deliveryDate"
+                    type="date"
+                    value={customerDetails.deliveryDate}
+                    onChange={(e) => handleInputChange("deliveryDate", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="shippingCharge">Shipping Charge (₹)</Label>
+                  <Input
+                    id="shippingCharge"
+                    type="number"
+                    min="0"
+                    value={customerDetails.shippingCharge}
+                    onChange={(e) => handleInputChange("shippingCharge", e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
                 <div className="md:col-span-2">
                   <Label htmlFor="notes">Special Notes (Optional)</Label>
                   <Textarea
@@ -933,11 +965,6 @@ const Index = () => {
                     {shippingCharge === 0 ? "FREE" : `₹${shippingCharge}`}
                   </span>
                 </div>
-                {shippingCharge > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Add ₹{499 - subtotal} more for free shipping
-                  </p>
-                )}
                 
                 <Separator />
                 
