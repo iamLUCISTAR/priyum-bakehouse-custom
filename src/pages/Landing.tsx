@@ -53,27 +53,33 @@ const Landing = () => {
   const loadData = async () => {
     try {
       // Load products
-      const { data: productsData } = await supabase
+      const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select("*")
         .order("category", { ascending: true });
 
-      if (productsData) {
+      if (productsError) {
+        console.error("Error loading products:", productsError);
+      } else if (productsData) {
         setProducts(productsData);
+        console.log("Products loaded:", productsData.length);
       }
 
-      // Load contact info (get any invoice settings for contact display)
-      const { data: settingsData } = await supabase
-        .from("invoice_settings")
-        .select("phone, email, business_name")
-        .limit(1)
-        .single();
-
-      if (settingsData) {
-        setContactInfo(settingsData);
-      }
+      // Set hardcoded contact information
+      setContactInfo({
+        phone: "+91 9677349169",
+        email: "priyum.orders@gmail.com",
+        business_name: "PRIYUM CAKES & BAKES"
+      });
+      console.log("Contact info set to hardcoded values");
     } catch (error) {
       console.error("Error loading data:", error);
+      // Set hardcoded contact information even on error
+      setContactInfo({
+        phone: "+91 9677349169",
+        email: "priyum.orders@gmail.com",
+        business_name: "PRIYUM CAKES & BAKES"
+      });
     } finally {
       setLoading(false);
     }
@@ -255,24 +261,20 @@ const Landing = () => {
                     <div>
                       <h3 className="text-sm font-semibold text-amber-700 mb-3">Contact Us</h3>
                       <div className="space-y-3">
-                        {contactInfo?.phone && (
-                          <a
-                            href={`tel:${contactInfo.phone}`}
-                            className="flex items-center space-x-3 text-amber-700 hover:text-amber-600 transition-colors"
-                          >
-                            <Phone className="h-4 w-4" />
-                            <span>{contactInfo.phone}</span>
-                          </a>
-                        )}
-                        {contactInfo?.email && (
-                          <a
-                            href={`mailto:${contactInfo.email}`}
-                            className="flex items-center space-x-3 text-amber-700 hover:text-amber-600 transition-colors"
-                          >
-                            <Mail className="h-4 w-4" />
-                            <span>{contactInfo.email}</span>
-                          </a>
-                        )}
+                        <a
+                          href="tel:+91 9677349169"
+                          className="flex items-center space-x-3 text-amber-700 hover:text-amber-600 transition-colors"
+                        >
+                          <Phone className="h-4 w-4" />
+                          <span>+91 9677349169</span>
+                        </a>
+                        <a
+                          href="mailto:priyum.orders@gmail.com"
+                          className="flex items-center space-x-3 text-amber-700 hover:text-amber-600 transition-colors"
+                        >
+                          <Mail className="h-4 w-4" />
+                          <span>priyum.orders@gmail.com</span>
+                        </a>
                         <a
                           href="https://www.instagram.com/priyum_bakery?igsh=MW5oZHdvOTM3bnRwcw=="
                           target="_blank"
@@ -296,30 +298,6 @@ const Landing = () => {
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white overflow-hidden">
         <div className="scrolling-banner-wrapper">
           <div className="scrolling-banner-track">
-            <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us.
-            </div>
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              🚚 Shipping available all across India
-            </div>
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              💵 Shipping charges as applicable
-            </div>
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us.
-            </div>
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              🚚 Shipping available all across India
-            </div>
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              💵 Shipping charges as applicable
-            </div>
-            <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
               🎉 Flat 10% off on your first order with us.
             </div>
@@ -372,16 +350,16 @@ const Landing = () => {
         <div className="hidden sm:block">
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8 bg-amber-100/70 backdrop-blur-sm p-1 rounded-xl shadow-sm">
-              {categories.map((category) => (
-                <TabsTrigger 
-                  key={category} 
-                  value={category}
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white rounded-lg font-medium transition-all duration-200"
-                >
-                  {category}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            {categories.map((category) => (
+              <TabsTrigger 
+                key={category} 
+                value={category}
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white rounded-lg font-medium transition-all duration-200"
+              >
+                {category}
+              </TabsTrigger>
+            ))}
+          </TabsList>
           </Tabs>
         </div>
         
@@ -391,7 +369,7 @@ const Landing = () => {
           
           if (categoryProducts.length === 0) {
             return (
-              <div className="text-center py-16">
+                  <div className="text-center py-16">
                 <div className="bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-2xl p-8 sm:p-12 max-w-lg mx-auto shadow-lg backdrop-blur-sm border border-amber-200/50">
                   <div className="text-6xl sm:text-8xl mb-6 animate-bounce">
                     {searchQuery ? "🔍" : "🔜"}
@@ -404,9 +382,9 @@ const Landing = () => {
                       ? `No products found matching "${searchQuery}"`
                       : `Delicious ${selectedCategory.toLowerCase()} are on their way!`
                     }
-                  </p>
-                </div>
-              </div>
+                      </p>
+                    </div>
+                  </div>
             );
           }
 
@@ -414,51 +392,51 @@ const Landing = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
               {categoryProducts.map((product) => {
                 const ProductCard = (
-                  <Card 
+                      <Card 
                     className="group overflow-hidden hover:shadow-xl transition-all duration-300 bg-amber-50/80 backdrop-blur-sm border-amber-200/50 hover:scale-105 cursor-pointer touch-manipulation"
-                  >
-                    {product.image && (
+                      >
+                        {product.image && (
                       <div className="overflow-hidden relative">
-                        <img
-                          src={product.image}
-                          alt={product.name}
+                            <img
+                              src={product.image}
+                              alt={product.name}
                           className="w-full h-auto object-contain group-hover:scale-110 transition-transform duration-300"
                           loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      </div>
-                    )}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          </div>
+                        )}
                     <CardContent className="p-4 sm:p-6">
                       <h3 className="font-bold text-lg sm:text-xl mb-2 text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                        {product.name}
-                      </h3>
-                      {product.description && (
+                            {product.name}
+                          </h3>
+                          {product.description && (
                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
-                          {product.description}
-                        </p>
-                      )}
-                      
-                      <div className="space-y-3">
+                              {product.description}
+                            </p>
+                          )}
+                          
+                          <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Badge variant="secondary" className="text-base sm:text-lg font-bold px-3 py-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm">
-                            {formatPrice(product.price, product.base_weight || undefined, product.weight_unit || undefined)}
-                          </Badge>
-                          {product.weight_options && Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
+                                {formatPrice(product.price, product.base_weight || undefined, product.weight_unit || undefined)}
+                              </Badge>
+                              {product.weight_options && Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
                             <Badge variant="outline" className="text-xs border-amber-300 text-amber-600 bg-amber-50">
                               +{product.weight_options.length} sizes
                             </Badge>
-                          )}
-                        </div>
-                        
+                              )}
+                            </div>
+                            
                         <div className="flex items-center justify-center text-xs text-amber-600">
                           <div className="flex items-center space-x-1">
                             <Clock className="h-3 w-3" />
                             <span>Fresh Daily</span>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                          </div>
+                        </CardContent>
+                      </Card>
                 );
 
                 // Use ProductQuickView for mobile, regular modal for desktop
@@ -476,8 +454,8 @@ const Landing = () => {
                       {ProductCard}
                     </div>
                   </div>
-                );
-              })}
+            );
+          })}
             </div>
           );
         })()}
@@ -519,72 +497,72 @@ const Landing = () => {
                 <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
                   {/* Desktop Product Image */}
                   <div className="hidden sm:block space-y-4">
-                    {selectedProduct.image ? (
+                  {selectedProduct.image ? (
                       <div className="overflow-hidden rounded-xl border-2 border-amber-200">
-                        <img
-                          src={selectedProduct.image}
-                          alt={selectedProduct.name}
+                      <img
+                        src={selectedProduct.image}
+                        alt={selectedProduct.name}
                           className="w-full h-auto object-contain"
-                        />
+                      />
+                    </div>
+                  ) : (
+                    <div className="aspect-square bg-amber-100 rounded-xl border-2 border-amber-200 flex items-center justify-center">
+                      <p className="text-amber-600">No image available</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Product Details */}
+                <div className="space-y-6">
+                  {selectedProduct.description && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-amber-800 mb-2">Description</h3>
+                      <p className="text-amber-700 leading-relaxed">
+                        {selectedProduct.description}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-amber-800 mb-3">Pricing</h3>
+                    
+                    {/* Base Price */}
+                    <div className="bg-amber-100/70 rounded-lg p-4 mb-4 border border-amber-200">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-amber-800">
+                          Base Price {selectedProduct.base_weight && selectedProduct.weight_unit && 
+                            `(${selectedProduct.base_weight}${selectedProduct.weight_unit})`}
+                        </span>
+                        <Badge className="bg-gradient-to-r from-amber-600 to-orange-600 text-white text-lg px-3 py-1">
+                          ₹{selectedProduct.price}
+                        </Badge>
                       </div>
-                    ) : (
-                      <div className="aspect-square bg-amber-100 rounded-xl border-2 border-amber-200 flex items-center justify-center">
-                        <p className="text-amber-600">No image available</p>
+                    </div>
+
+                    {/* Weight Options */}
+                    {selectedProduct.weight_options && 
+                     Array.isArray(selectedProduct.weight_options) && 
+                     selectedProduct.weight_options.length > 0 && (
+                      <div>
+                        <h4 className="font-medium text-amber-800 mb-3">Available Sizes</h4>
+                        <div className="space-y-2">
+                          {selectedProduct.weight_options.map((option: any, index: number) => (
+                            <div 
+                              key={index} 
+                              className="bg-white/70 rounded-lg p-3 border border-amber-200 flex justify-between items-center hover:bg-amber-50/70 transition-colors"
+                            >
+                              <span className="text-amber-800 font-medium">
+                                {option.weight}{option.unit}
+                              </span>
+                              <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
+                                ₹{option.price}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Product Details */}
-                  <div className="space-y-6">
-                    {selectedProduct.description && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-amber-800 mb-2">Description</h3>
-                        <p className="text-amber-700 leading-relaxed">
-                          {selectedProduct.description}
-                        </p>
-                      </div>
-                    )}
-
-                    <div>
-                      <h3 className="text-lg font-semibold text-amber-800 mb-3">Pricing</h3>
-                      
-                      {/* Base Price */}
-                      <div className="bg-amber-100/70 rounded-lg p-4 mb-4 border border-amber-200">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-amber-800">
-                            Base Price {selectedProduct.base_weight && selectedProduct.weight_unit && 
-                              `(${selectedProduct.base_weight}${selectedProduct.weight_unit})`}
-                          </span>
-                          <Badge className="bg-gradient-to-r from-amber-600 to-orange-600 text-white text-lg px-3 py-1">
-                            ₹{selectedProduct.price}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Weight Options */}
-                      {selectedProduct.weight_options && 
-                       Array.isArray(selectedProduct.weight_options) && 
-                       selectedProduct.weight_options.length > 0 && (
-                        <div>
-                          <h4 className="font-medium text-amber-800 mb-3">Available Sizes</h4>
-                          <div className="space-y-2">
-                            {selectedProduct.weight_options.map((option: any, index: number) => (
-                              <div 
-                                key={index} 
-                                className="bg-white/70 rounded-lg p-3 border border-amber-200 flex justify-between items-center hover:bg-amber-50/70 transition-colors"
-                              >
-                                <span className="text-amber-800 font-medium">
-                                  {option.weight}{option.unit}
-                                </span>
-                                <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
-                                  ₹{option.price}
-                                </Badge>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
 
                     {/* Product Features */}
                     <div className="flex items-center justify-center text-amber-600">
@@ -594,38 +572,34 @@ const Landing = () => {
                       </div>
                     </div>
 
-                    {/* Contact for Orders */}
-                    <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 border border-amber-200">
-                      <h4 className="font-semibold text-amber-800 mb-2">Place Your Order</h4>
+                  {/* Contact for Orders */}
+                  <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 border border-amber-200">
+                    <h4 className="font-semibold text-amber-800 mb-2">Place Your Order</h4>
                       <p className="text-sm text-amber-700 mb-4">
-                        Contact us directly to place your order for this delicious treat!
-                      </p>
+                      Contact us directly to place your order for this delicious treat!
+                    </p>
                       <div className="flex flex-col sm:flex-row gap-3">
-                        {contactInfo?.phone && (
-                          <Button
-                            asChild
-                            size="lg"
-                            className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white flex-1"
-                          >
-                            <a href={`https://wa.me/${contactInfo.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
-                              <Phone className="h-4 w-4 mr-2" />
-                              WhatsApp Now
-                            </a>
-                          </Button>
-                        )}
-                        {contactInfo?.email && (
-                          <Button
-                            asChild
-                            variant="outline"
-                            size="lg"
-                            className="border-amber-300 text-amber-700 hover:bg-amber-50 flex-1"
-                          >
-                            <a href={`mailto:${contactInfo.email}`}>
-                              <Mail className="h-4 w-4 mr-2" />
-                              Email Us
-                            </a>
-                          </Button>
-                        )}
+                        <Button
+                          asChild
+                          size="lg"
+                          className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white flex-1"
+                        >
+                          <a href="https://wa.me/919677349169" target="_blank" rel="noopener noreferrer">
+                            <Phone className="h-4 w-4 mr-2" />
+                            WhatsApp Now
+                          </a>
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="lg"
+                          className="border-amber-300 text-amber-700 hover:bg-amber-50 flex-1"
+                        >
+                          <a href="mailto:priyum.orders@gmail.com">
+                            <Mail className="h-4 w-4 mr-2" />
+                            Email Us
+                          </a>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -644,27 +618,23 @@ const Landing = () => {
               <h3 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">For Orders</h3>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
-              {contactInfo?.phone && (
-                <a
-                  href={`https://wa.me/${contactInfo.phone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 text-amber-800 hover:text-amber-600 transition-all duration-200 p-3 rounded-lg hover:bg-amber-50/70 backdrop-blur-sm"
-                >
-                  <Phone className="h-5 w-5 sm:h-6 sm:w-6" />
-                  <span className="font-semibold text-base sm:text-lg">{contactInfo.phone}</span>
-                </a>
-              )}
+              <a
+                href="https://wa.me/919677349169"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 text-amber-800 hover:text-amber-600 transition-all duration-200 p-3 rounded-lg hover:bg-amber-50/70 backdrop-blur-sm"
+              >
+                <Phone className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="font-semibold text-base sm:text-lg">+91 9677349169</span>
+              </a>
               
-              {contactInfo?.email && (
-                <a
-                  href={`mailto:${contactInfo.email}`}
-                  className="flex items-center gap-3 text-amber-800 hover:text-amber-600 transition-all duration-200 p-3 rounded-lg hover:bg-amber-50/70 backdrop-blur-sm"
-                >
-                  <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
-                  <span className="font-semibold text-base sm:text-lg">{contactInfo.email}</span>
-                </a>
-              )}
+              <a
+                href="mailto:priyum.orders@gmail.com"
+                className="flex items-center gap-3 text-amber-800 hover:text-amber-600 transition-all duration-200 p-3 rounded-lg hover:bg-amber-50/70 backdrop-blur-sm"
+              >
+                <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="font-semibold text-base sm:text-lg">priyum.orders@gmail.com</span>
+              </a>
               
               <a
                 href="https://www.instagram.com/priyum_bakery?igsh=MW5oZHdvOTM3bnRwcw=="
