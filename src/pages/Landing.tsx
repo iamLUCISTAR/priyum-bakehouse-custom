@@ -211,19 +211,54 @@ const Landing = () => {
   const getStatusAnimation = (status: string) => {
     switch (status) {
       case "pending":
-        return <div className="animate-pulse w-3 h-3 bg-yellow-500 rounded-full"></div>;
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-yellow-500 border-t-transparent"></div>
+            <span className="text-xs text-yellow-600">⏰</span>
+          </div>
+        );
       case "preparing":
-        return <div className="animate-spin w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full"></div>;
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-whisk-rotate h-4 w-4 text-blue-600">🥄</div>
+            <span className="text-xs text-blue-600">Whisking</span>
+          </div>
+        );
       case "ready":
-        return <div className="animate-bounce w-3 h-3 bg-green-500 rounded-full"></div>;
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-package-bounce h-4 w-4 text-green-600">📦</div>
+            <span className="text-xs text-green-600">Packed</span>
+          </div>
+        );
       case "shipped":
-        return <div className="animate-ping w-3 h-3 bg-blue-500 rounded-full"></div>;
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-truck-move h-4 w-4 text-blue-600">🚚</div>
+            <span className="text-xs text-blue-600">Moving</span>
+          </div>
+        );
       case "delivered":
-        return <div className="w-3 h-3 bg-green-600 rounded-full"></div>;
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-heart-eyes h-4 w-4 text-pink-600">😍</div>
+            <span className="text-xs text-pink-600">Delivered</span>
+          </div>
+        );
       case "cancelled":
-        return <div className="w-3 h-3 bg-red-500 rounded-full"></div>;
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="h-4 w-4 text-red-500">❌</div>
+            <span className="text-xs text-red-500">Cancelled</span>
+          </div>
+        );
       default:
-        return <div className="w-3 h-3 bg-gray-500 rounded-full"></div>;
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="h-4 w-4 bg-gray-500 rounded-full"></div>
+            <span className="text-xs text-gray-500">Unknown</span>
+          </div>
+        );
     }
   };
 
@@ -307,10 +342,7 @@ const Landing = () => {
       setShowStatusModal(true);
       setIsMobileMenuOpen(false);
 
-      toast({
-        title: "Order Status Found",
-        description: `Order status: ${orderData.status}`,
-      });
+      // Removed the toast notification for "Order Status Found"
 
     } catch (error) {
       console.error('Order status check error:', error);
@@ -779,44 +811,44 @@ const Landing = () => {
 
         {/* Order Status Modal */}
         <Dialog open={showStatusModal} onOpenChange={setShowStatusModal}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-amber-50/95 backdrop-blur-sm border-amber-200">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-amber-800 flex items-center">
-                <Clock className="h-5 w-5 mr-2" />
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-amber-50/95 backdrop-blur-sm border-amber-200 transition-all duration-300 ease-in-out transform scale-100 opacity-100 animate-modal-entrance">
+            <DialogHeader className="transition-all duration-300 ease-in-out">
+              <DialogTitle className="text-xl font-bold text-amber-800 flex items-center transition-all duration-300 ease-in-out">
+                <Clock className="h-5 w-5 mr-2 transition-transform duration-300 ease-in-out" />
                 Order Status
               </DialogTitle>
             </DialogHeader>
             
             {orderStatusResult && (
-              <div className="space-y-6">
+              <div className="space-y-6 transition-all duration-500 ease-in-out animate-fade-in">
                 {/* Order Details */}
-                <div className="bg-white/70 rounded-lg p-4 border border-amber-200">
-                  <h3 className="font-semibold text-amber-800 mb-3">Order Information</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
+                <div className="bg-white/70 rounded-lg p-4 border border-amber-200 transition-all duration-300 ease-in-out hover:shadow-md transform hover:scale-[1.02]">
+                  <h3 className="font-semibold text-amber-800 mb-3 transition-all duration-300 ease-in-out">Order Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm transition-all duration-300 ease-in-out">
+                    <div className="transition-all duration-300 ease-in-out hover:bg-amber-50/50 p-2 rounded">
                       <span className="text-amber-600 font-medium">Order ID:</span>
                       <p className="text-amber-800">{orderStatusResult.orderId}</p>
                     </div>
-                    <div>
+                    <div className="transition-all duration-300 ease-in-out hover:bg-amber-50/50 p-2 rounded">
                       <span className="text-amber-600 font-medium">Customer:</span>
                       <p className="text-amber-800">{orderStatusResult.customerName}</p>
                     </div>
-                    <div>
+                    <div className="transition-all duration-300 ease-in-out hover:bg-amber-50/50 p-2 rounded">
                       <span className="text-amber-600 font-medium">Status:</span>
                       <div className="flex items-center space-x-2">
                         <p className="text-amber-800">{formatStatus(orderStatusResult.status)}</p>
                         {getStatusAnimation(orderStatusResult.status)}
                       </div>
                     </div>
-                    <div>
+                    <div className="transition-all duration-300 ease-in-out hover:bg-amber-50/50 p-2 rounded">
                       <span className="text-amber-600 font-medium">Total:</span>
                       <p className="text-amber-800">₹{orderStatusResult.total}</p>
                     </div>
-                    <div>
+                    <div className="transition-all duration-300 ease-in-out hover:bg-amber-50/50 p-2 rounded">
                       <span className="text-amber-600 font-medium">Created At:</span>
                       <p className="text-amber-800">{formatDate(orderStatusResult.createdAt)}</p>
                     </div>
-                    <div>
+                    <div className="transition-all duration-300 ease-in-out hover:bg-amber-50/50 p-2 rounded">
                       <span className="text-amber-600 font-medium">Checked At:</span>
                       <p className="text-amber-800">{formatDate(orderStatusResult.timestamp)}</p>
                     </div>
@@ -827,17 +859,17 @@ const Landing = () => {
                 {orderStatusResult.status === "shipped" && orderStatusResult.shipmentNumber ? (
                   // Show shipment tracking for shipped orders with shipment number
                   <>
-                    <div className="bg-white/70 rounded-lg p-4 border border-amber-200">
-                      <h3 className="font-semibold text-amber-800 mb-3 flex items-center">
-                        <MapPin className="h-5 w-5 mr-2" />
+                    <div className="bg-white/70 rounded-lg p-4 border border-amber-200 transition-all duration-300 ease-in-out hover:shadow-md transform hover:scale-[1.02]">
+                      <h3 className="font-semibold text-amber-800 mb-3 flex items-center transition-all duration-300 ease-in-out">
+                        <MapPin className="h-5 w-5 mr-2 transition-transform duration-300 ease-in-out" />
                         Shipment Tracking
                       </h3>
-                      <div className="bg-gray-50 rounded p-3 border">
-                        <p className="text-sm text-gray-600 mb-2">
+                      <div className="bg-gray-50 rounded p-3 border transition-all duration-300 ease-in-out">
+                        <p className="text-sm text-gray-600 mb-2 transition-all duration-300 ease-in-out">
                           <strong>Note:</strong> To get detailed tracking information, 
-                          please visit the <a href="https://www.dtdc.in/trace.asp" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">DTDC tracking page</a> directly.
+                          please visit the <a href="https://www.dtdc.in/trace.asp" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline transition-all duration-300 ease-in-out">DTDC tracking page</a> directly.
                         </p>
-                        <div className="text-sm text-gray-700">
+                        <div className="text-sm text-gray-700 transition-all duration-300 ease-in-out">
                           <p><strong>Shipment Number:</strong> {orderStatusResult.shipmentNumber}</p>
                           <p><strong>Status:</strong> Ready for tracking on DTDC website</p>
                         </div>
@@ -845,21 +877,21 @@ const Landing = () => {
                     </div>
 
                     {/* Direct DTDC Link */}
-                    <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 border border-amber-200">
-                      <h4 className="font-semibold text-amber-800 mb-2">Get Detailed Tracking</h4>
-                      <p className="text-sm text-amber-700 mb-3">
+                    <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 border border-amber-200 transition-all duration-300 ease-in-out hover:shadow-md transform hover:scale-[1.02]">
+                      <h4 className="font-semibold text-amber-800 mb-2 transition-all duration-300 ease-in-out">Get Detailed Tracking</h4>
+                      <p className="text-sm text-amber-700 mb-3 transition-all duration-300 ease-in-out">
                         For complete tracking details, visit the official DTDC tracking page.
                       </p>
                       <Button
                         asChild
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white transition-all duration-300 ease-in-out transform hover:scale-[1.02]"
                       >
                         <a 
                           href={`https://www.dtdc.in/trace.asp?awb=${orderStatusResult.shipmentNumber}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
-                          <MapPin className="h-4 w-4 mr-2" />
+                          <MapPin className="h-4 w-4 mr-2 transition-transform duration-300 ease-in-out" />
                           View on DTDC Website
                         </a>
                       </Button>
@@ -867,16 +899,16 @@ const Landing = () => {
                   </>
                 ) : (
                   // Show status-specific information for other statuses
-                  <div className="bg-white/70 rounded-lg p-4 border border-amber-200">
-                    <h3 className="font-semibold text-amber-800 mb-3">Current Status</h3>
-                    <div className="bg-gray-50 rounded p-3 border">
-                      <div className="flex items-center space-x-3 mb-3">
+                  <div className="bg-white/70 rounded-lg p-4 border border-amber-200 transition-all duration-300 ease-in-out hover:shadow-md transform hover:scale-[1.02]">
+                    <h3 className="font-semibold text-amber-800 mb-3 transition-all duration-300 ease-in-out">Current Status</h3>
+                    <div className="bg-gray-50 rounded p-3 border transition-all duration-300 ease-in-out">
+                      <div className="flex items-center space-x-3 mb-3 transition-all duration-300 ease-in-out">
                         {getStatusAnimation(orderStatusResult.status)}
-                        <span className="text-lg font-medium text-amber-800">
+                        <span className="text-lg font-medium text-amber-800 transition-all duration-300 ease-in-out">
                           {formatStatus(getStatusMessage(orderStatusResult.status))}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 transition-all duration-300 ease-in-out">
                         {getStatusDescription(orderStatusResult.status)}
                       </p>
                     </div>
