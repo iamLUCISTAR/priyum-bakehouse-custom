@@ -114,6 +114,7 @@ export type Database = {
           id: string
           order_date: string
           shipping_charges: number | null
+          shipment_number: string | null
           status: string | null
           subtotal: number
           total: number
@@ -132,6 +133,7 @@ export type Database = {
           id?: string
           order_date?: string
           shipping_charges?: number | null
+          shipment_number?: string | null
           status?: string | null
           subtotal: number
           total: number
@@ -150,6 +152,7 @@ export type Database = {
           id?: string
           order_date?: string
           shipping_charges?: number | null
+          shipment_number?: string | null
           status?: string | null
           subtotal?: number
           total?: number

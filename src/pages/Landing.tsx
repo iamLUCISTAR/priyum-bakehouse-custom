@@ -11,6 +11,8 @@ import { Phone, Mail, Instagram, Heart, X, Menu, Star, ShoppingBag, Clock, MapPi
 import ProductQuickView from "@/components/ProductQuickView";
 import MobileSearchFilter from "@/components/MobileSearchFilter";
 import type { Database } from "@/integrations/supabase/types";
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 
@@ -41,6 +43,11 @@ const Landing = () => {
     sortBy: "name",
     availability: "all"
   });
+  const [orderIdToCheck, setOrderIdToCheck] = useState("");
+  const [orderStatusResult, setOrderStatusResult] = useState<any>(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -189,6 +196,134 @@ const Landing = () => {
     return `₹${price}`;
   };
 
+  const formatStatus = (status: string) => {
+    return status.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const year = date.getFullYear().toString().slice(-2);
+    return `${day} ${month} ${year}`;
+  };
+
+  const getStatusAnimation = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <div className="animate-pulse w-3 h-3 bg-yellow-500 rounded-full"></div>;
+      case "preparing":
+        return <div className="animate-spin w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full"></div>;
+      case "ready":
+        return <div className="animate-bounce w-3 h-3 bg-green-500 rounded-full"></div>;
+      case "shipped":
+        return <div className="animate-ping w-3 h-3 bg-blue-500 rounded-full"></div>;
+      case "delivered":
+        return <div className="w-3 h-3 bg-green-600 rounded-full"></div>;
+      case "cancelled":
+        return <div className="w-3 h-3 bg-red-500 rounded-full"></div>;
+      default:
+        return <div className="w-3 h-3 bg-gray-500 rounded-full"></div>;
+    }
+  };
+
+  const getStatusMessage = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "Order Pending";
+      case "preparing":
+        return "Preparing Your Order";
+      case "ready":
+        return "Ready for Pickup/Delivery";
+      case "shipped":
+        return "Order Shipped";
+      case "delivered":
+        return "Order Delivered";
+      case "cancelled":
+        return "Order Cancelled";
+      default:
+        return "Unknown Status";
+    }
+  };
+
+  const getStatusDescription = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "Your order has been received and is waiting to be processed.";
+      case "preparing":
+        return "Our team is preparing your delicious treats with care.";
+      case "ready":
+        return "Your order is ready! You can pick it up or we'll deliver it soon.";
+      case "shipped":
+        return "Your order has been shipped and is on its way to you.";
+      case "delivered":
+        return "Your order has been successfully delivered. Enjoy your treats!";
+      case "cancelled":
+        return "This order has been cancelled. Please contact us if you have any questions.";
+      default:
+        return "We're processing your order status.";
+    }
+  };
+
+  const checkOrderStatus = async (orderId: string) => {
+    if (!orderId.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid Order ID",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCheckingStatus(true);
+    try {
+      // Fetch the order details including status and shipment number
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('id, customer_name, status, shipment_number, created_at, total')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !orderData) {
+        toast({
+          title: "Order Not Found",
+          description: "No order found with this Order ID",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Set order status result
+      setOrderStatusResult({
+        orderId: orderData.id,
+        customerName: orderData.customer_name,
+        status: orderData.status,
+        shipmentNumber: orderData.shipment_number,
+        total: orderData.total,
+        createdAt: orderData.created_at,
+        timestamp: new Date().toISOString()
+      });
+
+      setShowStatusModal(true);
+      setIsMobileMenuOpen(false);
+
+      toast({
+        title: "Order Status Found",
+        description: `Order status: ${orderData.status}`,
+      });
+
+    } catch (error) {
+      console.error('Order status check error:', error);
+      toast({
+        title: "Error",
+        description: "Unable to fetch order details. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 flex items-center justify-center">
@@ -284,6 +419,39 @@ const Landing = () => {
                           <Instagram className="h-4 w-4" />
                           <span>@priyum_bakery</span>
                         </a>
+                      </div>
+                    </div>
+
+                    {/* Check Order Status */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-700 mb-3">Check Order Status</h3>
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Input
+                            placeholder="Enter Order ID"
+                            value={orderIdToCheck}
+                            onChange={(e) => setOrderIdToCheck(e.target.value)}
+                            className="text-sm"
+                          />
+                          <Button
+                            onClick={() => checkOrderStatus(orderIdToCheck)}
+                            disabled={isCheckingStatus || !orderIdToCheck.trim()}
+                            className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white"
+                            size="sm"
+                          >
+                            {isCheckingStatus ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                                Checking...
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="h-4 w-4 mr-2" />
+                                Check Status
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -604,6 +772,116 @@ const Landing = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Order Status Modal */}
+        <Dialog open={showStatusModal} onOpenChange={setShowStatusModal}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-amber-50/95 backdrop-blur-sm border-amber-200">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-amber-800 flex items-center">
+                <Clock className="h-5 w-5 mr-2" />
+                Order Status
+              </DialogTitle>
+            </DialogHeader>
+            
+            {orderStatusResult && (
+              <div className="space-y-6">
+                {/* Order Details */}
+                <div className="bg-white/70 rounded-lg p-4 border border-amber-200">
+                  <h3 className="font-semibold text-amber-800 mb-3">Order Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-amber-600 font-medium">Order ID:</span>
+                      <p className="text-amber-800">{orderStatusResult.orderId}</p>
+                    </div>
+                    <div>
+                      <span className="text-amber-600 font-medium">Customer:</span>
+                      <p className="text-amber-800">{orderStatusResult.customerName}</p>
+                    </div>
+                    <div>
+                      <span className="text-amber-600 font-medium">Status:</span>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-amber-800">{formatStatus(orderStatusResult.status)}</p>
+                        {getStatusAnimation(orderStatusResult.status)}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-amber-600 font-medium">Total:</span>
+                      <p className="text-amber-800">₹{orderStatusResult.total}</p>
+                    </div>
+                    <div>
+                      <span className="text-amber-600 font-medium">Created At:</span>
+                      <p className="text-amber-800">{formatDate(orderStatusResult.createdAt)}</p>
+                    </div>
+                    <div>
+                      <span className="text-amber-600 font-medium">Checked At:</span>
+                      <p className="text-amber-800">{formatDate(orderStatusResult.timestamp)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Conditional Content based on Status */}
+                {orderStatusResult.status === "shipped" && orderStatusResult.shipmentNumber ? (
+                  // Show shipment tracking for shipped orders with shipment number
+                  <>
+                    <div className="bg-white/70 rounded-lg p-4 border border-amber-200">
+                      <h3 className="font-semibold text-amber-800 mb-3 flex items-center">
+                        <MapPin className="h-5 w-5 mr-2" />
+                        Shipment Tracking
+                      </h3>
+                      <div className="bg-gray-50 rounded p-3 border">
+                        <p className="text-sm text-gray-600 mb-2">
+                          <strong>Note:</strong> To get detailed tracking information, 
+                          please visit the <a href="https://www.dtdc.in/trace.asp" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">DTDC tracking page</a> directly.
+                        </p>
+                        <div className="text-sm text-gray-700">
+                          <p><strong>Shipment Number:</strong> {orderStatusResult.shipmentNumber}</p>
+                          <p><strong>Status:</strong> Ready for tracking on DTDC website</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Direct DTDC Link */}
+                    <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 border border-amber-200">
+                      <h4 className="font-semibold text-amber-800 mb-2">Get Detailed Tracking</h4>
+                      <p className="text-sm text-amber-700 mb-3">
+                        For complete tracking details, visit the official DTDC tracking page.
+                      </p>
+                      <Button
+                        asChild
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                      >
+                        <a 
+                          href={`https://www.dtdc.in/trace.asp?awb=${orderStatusResult.shipmentNumber}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <MapPin className="h-4 w-4 mr-2" />
+                          View on DTDC Website
+                        </a>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  // Show status-specific information for other statuses
+                  <div className="bg-white/70 rounded-lg p-4 border border-amber-200">
+                    <h3 className="font-semibold text-amber-800 mb-3">Current Status</h3>
+                    <div className="bg-gray-50 rounded p-3 border">
+                      <div className="flex items-center space-x-3 mb-3">
+                        {getStatusAnimation(orderStatusResult.status)}
+                        <span className="text-lg font-medium text-amber-800">
+                          {formatStatus(getStatusMessage(orderStatusResult.status))}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {getStatusDescription(orderStatusResult.status)}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>

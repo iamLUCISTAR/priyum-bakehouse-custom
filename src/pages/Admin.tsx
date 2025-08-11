@@ -48,6 +48,7 @@ interface Order {
   custom_order_date?: string;
   custom_invoice_date?: string;
   delivery_date?: string;
+  shipment_number?: string | null;
 }
 
 interface OrderItem {
@@ -118,6 +119,14 @@ export default function Admin() {
 
   const categories = ["cookies", "brownies", "pastries", "cakes"];
   const weightUnits = ["grams", "kg", "pieces"];
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const year = date.getFullYear().toString().slice(-2);
+    return `${day} ${month} ${year}`;
+  };
 
   useEffect(() => {
     checkAuth();
@@ -649,7 +658,8 @@ export default function Admin() {
           total: editingOrder.total,
           custom_order_date: editingOrder.custom_order_date,
           custom_invoice_date: editingOrder.custom_invoice_date,
-          delivery_date: editingOrder.delivery_date
+          delivery_date: editingOrder.delivery_date,
+          shipment_number: editingOrder.shipment_number
         })
         .eq('id', editingOrder.id);
 
@@ -769,11 +779,16 @@ export default function Admin() {
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
     const pendingOrders = orders.filter(order => order.status === "pending").length;
+    const shippedOrders = orders.filter(order => order.status === "shipped").length;
 
-    return { totalProducts, totalOrders, totalRevenue, pendingOrders };
+    return { totalProducts, totalOrders, totalRevenue, pendingOrders, shippedOrders };
   };
 
   const stats = getTotalStats();
+
+  const formatStatus = (status: string) => {
+    return status.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
 
   const loadInvoiceSettings = async () => {
     try {
@@ -797,8 +812,8 @@ export default function Admin() {
           businessSubtitle: data.business_subtitle,
           phone: data.phone,
           email: data.email,
-          orderDate: new Date().toISOString().split('T')[0],
-          invoiceDate: new Date().toISOString().split('T')[0]
+          orderDate: formatDate(new Date().toISOString()),
+          invoiceDate: formatDate(new Date().toISOString())
         });
       }
     } catch (error) {
@@ -825,8 +840,8 @@ export default function Admin() {
               📞 ${invoiceSettings.phone} | 📧 ${invoiceSettings.email}
             </div>
             <div style="margin-top: 10px; font-size: 14px;">Invoice #INV-${order.id.slice(0, 8)}</div>
-            <div style="font-size: 12px; color: #666;">Invoice Date: ${order.custom_invoice_date || new Date().toISOString().split('T')[0]}</div>
-            <div style="font-size: 12px; color: #666;">Order Date: ${order.custom_order_date || new Date().toISOString().split('T')[0]}</div>
+            <div style="font-size: 12px; color: #666;">Invoice Date: ${order.custom_invoice_date ? formatDate(order.custom_invoice_date) : formatDate(new Date().toISOString())}</div>
+            <div style="font-size: 12px; color: #666;">Order Date: ${order.custom_order_date ? formatDate(order.custom_order_date) : formatDate(order.order_date)}</div>
           </div>
           
           <div style="margin: 20px 0; padding: 15px; background: #f9f7f4; border-radius: 5px;">
@@ -834,7 +849,8 @@ export default function Admin() {
             <p style="margin: 5px 0;"><strong>Name:</strong> ${order.customer_name}</p>
             <p style="margin: 5px 0;"><strong>Phone:</strong> ${order.customer_phone || 'N/A'}</p>
             <p style="margin: 5px 0;"><strong>Address:</strong> ${order.customer_address || 'N/A'}</p>
-            ${order.delivery_date ? `<p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${order.delivery_date}</p>` : ''}
+            ${order.delivery_date ? `<p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${formatDate(order.delivery_date)}</p>` : ''}
+            ${order.shipment_number ? `<p style="margin: 5px 0;"><strong>Shipment Number:</strong> ${order.shipment_number}</p>` : ''}
           </div>
           
           <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
@@ -879,7 +895,7 @@ export default function Admin() {
           
           <div style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
             <p>Thank you for choosing PRIYUM Cakes & Bakes!</p>
-            <p>Order Date: ${new Date(order.order_date).toLocaleDateString()}</p>
+            <p>Order Date: ${formatDate(order.order_date)}</p>
             <p>Made with ❤️ for delicious moments</p>
           </div>
         </div>
@@ -963,7 +979,7 @@ export default function Admin() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card className="shadow-warm">
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
@@ -1007,6 +1023,18 @@ export default function Admin() {
                 <div>
                   <p className="text-sm text-muted-foreground">Pending Orders</p>
                   <p className="text-2xl font-bold text-foreground">{stats.pendingOrders}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-warm">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-2">
+                <Package className="w-8 h-8 text-blue-600" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Shipped Orders</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.shippedOrders}</p>
                 </div>
               </div>
             </CardContent>
@@ -1306,6 +1334,7 @@ export default function Admin() {
                       <TableHead>Items</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Shipment</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -1338,12 +1367,24 @@ export default function Admin() {
                                <SelectItem value="pending">Pending</SelectItem>
                                <SelectItem value="preparing">Preparing</SelectItem>
                                <SelectItem value="ready">Ready</SelectItem>
+                               <SelectItem value="shipped">Shipped</SelectItem>
                                <SelectItem value="delivered">Delivered</SelectItem>
                                <SelectItem value="cancelled">Cancelled</SelectItem>
                              </SelectContent>
                            </Select>
                          </TableCell>
-                         <TableCell>{new Date(order.order_date).toLocaleDateString()}</TableCell>
+                         <TableCell>
+                           <div className="text-sm">
+                             {order.shipment_number ? (
+                               <span className="font-mono bg-muted px-2 py-1 rounded text-xs">
+                                 {order.shipment_number}
+                               </span>
+                             ) : (
+                               <span className="text-muted-foreground text-xs">Not set</span>
+                             )}
+                           </div>
+                         </TableCell>
+                         <TableCell>{formatDate(order.order_date)}</TableCell>
                          <TableCell>
                            <div className="flex space-x-2">
                              <Button 
@@ -1473,7 +1514,7 @@ export default function Admin() {
                         <TableCell className="font-medium">{user.full_name || 'N/A'}</TableCell>
                         <TableCell>{user.email || 'N/A'}</TableCell>
                         <TableCell>{user.phone || 'N/A'}</TableCell>
-                        <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDate(user.created_at)}</TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
                             <Button
@@ -1755,19 +1796,23 @@ export default function Admin() {
                     </div>
                     <div>
                       <Label>Order Status</Label>
-                      <Badge variant="outline">{orderDetails.order.status}</Badge>
+                      <Badge variant="outline">{formatStatus(orderDetails.order.status)}</Badge>
                     </div>
                     <div>
                       <Label>Order Date</Label>
-                      <p className="text-foreground">{orderDetails.order.custom_order_date || new Date(orderDetails.order.order_date).toLocaleDateString()}</p>
+                      <p className="text-foreground">{orderDetails.order.custom_order_date ? formatDate(orderDetails.order.custom_order_date) : formatDate(orderDetails.order.order_date)}</p>
                     </div>
                     <div>
                       <Label>Invoice Date</Label>
-                      <p className="text-foreground">{orderDetails.order.custom_invoice_date || new Date().toLocaleDateString()}</p>
+                      <p className="text-foreground">{orderDetails.order.custom_invoice_date ? formatDate(orderDetails.order.custom_invoice_date) : formatDate(new Date().toISOString())}</p>
                     </div>
                     <div>
                       <Label>Delivery Date</Label>
-                      <p className="text-foreground">{orderDetails.order.delivery_date || 'Not specified'}</p>
+                      <p className="text-foreground">{orderDetails.order.delivery_date ? formatDate(orderDetails.order.delivery_date) : 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <Label>Shipment Number</Label>
+                      <p className="text-foreground">{orderDetails.order.shipment_number || 'Not specified'}</p>
                     </div>
                   </div>
                   
@@ -1857,6 +1902,7 @@ export default function Admin() {
                         <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="preparing">Preparing</SelectItem>
                         <SelectItem value="ready">Ready</SelectItem>
+                        <SelectItem value="shipped">Shipped</SelectItem>
                         <SelectItem value="delivered">Delivered</SelectItem>
                         <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
@@ -1927,6 +1973,15 @@ export default function Admin() {
                           total: total
                         } : null);
                       }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editShipmentNumber">Shipment Number</Label>
+                    <Input
+                      id="editShipmentNumber"
+                      placeholder="Enter tracking number"
+                      value={editingOrder.shipment_number || ''}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, shipment_number: e.target.value } : null)}
                     />
                   </div>
                 </div>
