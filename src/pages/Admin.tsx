@@ -48,6 +48,7 @@ interface Order {
   custom_order_date?: string;
   custom_invoice_date?: string;
   delivery_date?: string;
+  shipment_number?: string | null;
 }
 
 interface OrderItem {
@@ -649,7 +650,8 @@ export default function Admin() {
           total: editingOrder.total,
           custom_order_date: editingOrder.custom_order_date,
           custom_invoice_date: editingOrder.custom_invoice_date,
-          delivery_date: editingOrder.delivery_date
+          delivery_date: editingOrder.delivery_date,
+          shipment_number: editingOrder.shipment_number
         })
         .eq('id', editingOrder.id);
 
@@ -835,6 +837,7 @@ export default function Admin() {
             <p style="margin: 5px 0;"><strong>Phone:</strong> ${order.customer_phone || 'N/A'}</p>
             <p style="margin: 5px 0;"><strong>Address:</strong> ${order.customer_address || 'N/A'}</p>
             ${order.delivery_date ? `<p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${order.delivery_date}</p>` : ''}
+            ${order.shipment_number ? `<p style="margin: 5px 0;"><strong>Shipment Number:</strong> ${order.shipment_number}</p>` : ''}
           </div>
           
           <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
@@ -1306,6 +1309,7 @@ export default function Admin() {
                       <TableHead>Items</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Shipment</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -1342,6 +1346,17 @@ export default function Admin() {
                                <SelectItem value="cancelled">Cancelled</SelectItem>
                              </SelectContent>
                            </Select>
+                         </TableCell>
+                         <TableCell>
+                           <div className="text-sm">
+                             {order.shipment_number ? (
+                               <span className="font-mono bg-muted px-2 py-1 rounded text-xs">
+                                 {order.shipment_number}
+                               </span>
+                             ) : (
+                               <span className="text-muted-foreground text-xs">Not set</span>
+                             )}
+                           </div>
                          </TableCell>
                          <TableCell>{new Date(order.order_date).toLocaleDateString()}</TableCell>
                          <TableCell>
@@ -1769,6 +1784,10 @@ export default function Admin() {
                       <Label>Delivery Date</Label>
                       <p className="text-foreground">{orderDetails.order.delivery_date || 'Not specified'}</p>
                     </div>
+                    <div>
+                      <Label>Shipment Number</Label>
+                      <p className="text-foreground">{orderDetails.order.shipment_number || 'Not specified'}</p>
+                    </div>
                   </div>
                   
                   <div>
@@ -1927,6 +1946,15 @@ export default function Admin() {
                           total: total
                         } : null);
                       }}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="editShipmentNumber">Shipment Number</Label>
+                    <Input
+                      id="editShipmentNumber"
+                      placeholder="Enter tracking number"
+                      value={editingOrder.shipment_number || ''}
+                      onChange={(e) => setEditingOrder(prev => prev ? { ...prev, shipment_number: e.target.value } : null)}
                     />
                   </div>
                 </div>
