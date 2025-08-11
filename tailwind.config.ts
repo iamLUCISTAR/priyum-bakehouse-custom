@@ -168,6 +168,72 @@ export default {
 						transform: 'scale(1)',
 						opacity: '1'
 					}
+				},
+				'scroll-banner-true-elements': {
+					'0%': {
+						transform: 'translateX(0)'
+					},
+					'100%': {
+						transform: 'translateX(-100%)'
+					}
+				},
+				'whisk-rotate': {
+					'0%': {
+						transform: 'rotate(0deg)'
+					},
+					'100%': {
+						transform: 'rotate(360deg)'
+					}
+				},
+				'truck-move': {
+					'0%': {
+						transform: 'translateX(0)'
+					},
+					'100%': {
+						transform: 'translateX(100%)'
+					}
+				},
+				'heart-eyes': {
+					'0%': {
+						transform: 'scale(1)'
+					},
+					'50%': {
+						transform: 'scale(1.1)'
+					},
+					'100%': {
+						transform: 'scale(1)'
+					}
+				},
+				'package-bounce': {
+					'0%': {
+						transform: 'translateY(0)'
+					},
+					'50%': {
+						transform: 'translateY(-10px)'
+					},
+					'100%': {
+						transform: 'translateY(0)'
+					}
+				},
+				'modal-entrance': {
+					'0%': {
+						opacity: '0',
+						transform: 'scale(0.9) translateY(-20px)'
+					},
+					'100%': {
+						opacity: '1',
+						transform: 'scale(1) translateY(0)'
+					}
+				},
+				'modal-exit': {
+					'0%': {
+						opacity: '1',
+						transform: 'scale(1) translateY(0)'
+					},
+					'100%': {
+						opacity: '0',
+						transform: 'scale(0.9) translateY(-20px)'
+					}
 				}
 			},
 			animation: {
@@ -176,7 +242,14 @@ export default {
 				'slide-up': 'slide-up 0.3s ease-out',
 				'slide-down': 'slide-down 0.3s ease-out',
 				'fade-in': 'fade-in 0.2s ease-out',
-				'scale-in': 'scale-in 0.2s ease-out'
+				'scale-in': 'scale-in 0.2s ease-out',
+				'scroll-banner-true-elements': 'scroll-banner-true-elements 20s linear infinite',
+				'whisk-rotate': 'whisk-rotate 1s ease-in-out infinite',
+				'truck-move': 'truck-move 2s ease-in-out infinite',
+				'heart-eyes': 'heart-eyes 1.5s ease-in-out infinite',
+				'package-bounce': 'package-bounce 1s ease-in-out infinite',
+				'modal-entrance': 'modal-entrance 0.3s ease-out',
+				'modal-exit': 'modal-exit 0.3s ease-in',
 			},
 			transitionDuration: {
 				'200': '200ms',

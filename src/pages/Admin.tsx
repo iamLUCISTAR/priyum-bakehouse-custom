@@ -790,6 +790,60 @@ export default function Admin() {
     return status.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
+  const getStatusAnimation = (status: string) => {
+    switch (status) {
+      case "pending":
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-yellow-500 border-t-transparent"></div>
+            <span className="text-xs text-yellow-600">⏰</span>
+          </div>
+        );
+      case "preparing":
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-whisk-rotate h-4 w-4 text-blue-600">🥄</div>
+            <span className="text-xs text-blue-600">Whisking</span>
+          </div>
+        );
+      case "ready":
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-package-bounce h-4 w-4 text-green-600">📦</div>
+            <span className="text-xs text-green-600">Packed</span>
+          </div>
+        );
+      case "shipped":
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-truck-move h-4 w-4 text-blue-600">🚚</div>
+            <span className="text-xs text-blue-600">Moving</span>
+          </div>
+        );
+      case "delivered":
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-heart-eyes h-4 w-4 text-pink-600">😍</div>
+            <span className="text-xs text-pink-600">Delivered</span>
+          </div>
+        );
+      case "cancelled":
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="h-4 w-4 text-red-500">❌</div>
+            <span className="text-xs text-red-500">Cancelled</span>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="h-4 w-4 bg-gray-500 rounded-full"></div>
+            <span className="text-xs text-gray-500">Unknown</span>
+          </div>
+        );
+    }
+  };
+
   const loadInvoiceSettings = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1356,22 +1410,25 @@ export default function Admin() {
                          </TableCell>
                          <TableCell className="font-medium">₹{order.total}</TableCell>
                          <TableCell>
-                           <Select
-                             value={order.status}
-                             onValueChange={(value) => handleUpdateOrderStatus(order.id, value)}
-                           >
-                             <SelectTrigger className="w-32">
-                               <SelectValue />
-                             </SelectTrigger>
-                             <SelectContent>
-                               <SelectItem value="pending">Pending</SelectItem>
-                               <SelectItem value="preparing">Preparing</SelectItem>
-                               <SelectItem value="ready">Ready</SelectItem>
-                               <SelectItem value="shipped">Shipped</SelectItem>
-                               <SelectItem value="delivered">Delivered</SelectItem>
-                               <SelectItem value="cancelled">Cancelled</SelectItem>
-                             </SelectContent>
-                           </Select>
+                           <div className="flex items-center space-x-2">
+                             <Select
+                               value={order.status}
+                               onValueChange={(value) => handleUpdateOrderStatus(order.id, value)}
+                             >
+                               <SelectTrigger className="w-32">
+                                 <SelectValue />
+                               </SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="pending">Pending</SelectItem>
+                                 <SelectItem value="preparing">Preparing</SelectItem>
+                                 <SelectItem value="ready">Ready</SelectItem>
+                                 <SelectItem value="shipped">Shipped</SelectItem>
+                                 <SelectItem value="delivered">Delivered</SelectItem>
+                                 <SelectItem value="cancelled">Cancelled</SelectItem>
+                               </SelectContent>
+                             </Select>
+                             {getStatusAnimation(order.status)}
+                           </div>
                          </TableCell>
                          <TableCell>
                            <div className="text-sm">
@@ -1796,7 +1853,10 @@ export default function Admin() {
                     </div>
                     <div>
                       <Label>Order Status</Label>
-                      <Badge variant="outline">{formatStatus(orderDetails.order.status)}</Badge>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline">{formatStatus(orderDetails.order.status)}</Badge>
+                        {getStatusAnimation(orderDetails.order.status)}
+                      </div>
                     </div>
                     <div>
                       <Label>Order Date</Label>
