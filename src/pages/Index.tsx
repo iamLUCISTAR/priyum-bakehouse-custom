@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Minus, Plus, Trash2, Receipt, ShoppingCart, Heart, LogOut, Settings } from "lucide-react";
+import { Minus, Plus, Trash2, Receipt, ShoppingCart, Heart, LogOut, Settings, Package } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface InvoiceSettings {
@@ -116,8 +117,10 @@ const sampleProducts: Product[] = [
 const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [customerDetails, setCustomerDetails] = useState<CustomerDetails>({
     name: "",
     phone: "",
@@ -125,13 +128,9 @@ const Index = () => {
     notes: "",
     orderDate: new Date().toISOString().split('T')[0],
     invoiceDate: new Date().toISOString().split('T')[0],
-    deliveryDate: new Date().toISOString().split('T')[0],
+    deliveryDate: "",
     shippingCharge: 0
   });
-  const [discount, setDiscount] = useState<number>(0);
-  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings>({
     businessName: "❤️ PRIYUM",
     businessSubtitle: "Cakes & Bakes",
@@ -140,9 +139,15 @@ const Index = () => {
     orderDate: new Date().toLocaleDateString(),
     invoiceDate: new Date().toLocaleDateString()
   });
-  const [showInvoiceSettings, setShowInvoiceSettings] = useState(false);
-  const [showWeightSelector, setShowWeightSelector] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isWeightDialogOpen, setIsWeightDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedWeight, setSelectedWeight] = useState<WeightOption | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [discount, setDiscount] = useState<number>(0);
+
+  // Define categories
+  const categories = ["cookies", "brownies", "eggless brownies"];
 
   useEffect(() => {
     checkAuth();
@@ -292,10 +297,20 @@ const Index = () => {
     );
   }
 
+  // Round prices for invoice generation
+  const roundPrice = (price: number): number => {
+    const decimal = price - Math.floor(price);
+    if (decimal >= 0.5) {
+      return Math.ceil(price);
+    } else {
+      return Math.floor(price);
+    }
+  };
+
   const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const shippingCharge = customerDetails.shippingCharge;
-  const discountAmount = (subtotal * discount) / 100;
-  const total = subtotal + shippingCharge - discountAmount;
+  const discountAmount = roundPrice((subtotal * discount) / 100);
+  const total = roundPrice(subtotal + shippingCharge - discountAmount);
 
   const handleAddToCart = (product: Product, selectedWeight?: number, selectedPrice?: number, selectedUnit?: string) => {
     const price = selectedPrice || product.price;
@@ -338,7 +353,7 @@ const Index = () => {
     
     if (weightOptions && weightOptions.length > 0) {
       setSelectedProduct(product);
-      setShowWeightSelector(true);
+      setIsWeightDialogOpen(true);
     } else {
       handleAddToCart(product);
     }
@@ -347,7 +362,7 @@ const Index = () => {
   const handleWeightSelection = (weight: number, price: number, unit: string) => {
     if (selectedProduct) {
       handleAddToCart(selectedProduct, weight, price, unit);
-      setShowWeightSelector(false);
+      setIsWeightDialogOpen(false);
       setSelectedProduct(null);
     }
   };
@@ -398,7 +413,7 @@ const Index = () => {
       return;
     }
 
-    setIsGeneratingInvoice(true);
+    setIsGeneratingPDF(true);
 
     try {
       // First, save the order to database
@@ -505,66 +520,67 @@ const Index = () => {
       // Create a temporary HTML element for PDF generation
       const invoiceHtml = document.createElement('div');
       invoiceHtml.innerHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 40px; background: white; width: 800px;">
-          <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #d4a574; padding-bottom: 20px;">
-            <div style="color: #8b4513; font-size: 32px; font-weight: bold; margin-bottom: 5px;">${invoiceSettings.businessName}</div>
-            <div style="color: #d4a574; font-size: 14px;">${invoiceSettings.businessSubtitle}</div>
-            <div style="margin-top: 10px; color: #666; font-size: 12px;">
+        <div style="font-family: Arial, sans-serif; padding: 20px; background: white; width: 600px;">
+          <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #d4a574; padding-bottom: 15px;">
+            <div style="color: #8b4513; font-size: 24px; font-weight: bold; margin-bottom: 5px;">${invoiceSettings.businessName}</div>
+            <div style="color: #d4a574; font-size: 12px;">${invoiceSettings.businessSubtitle}</div>
+            <div style="margin-top: 8px; color: #666; font-size: 10px;">
               📞 ${invoiceSettings.phone} | 📧 ${invoiceSettings.email}
             </div>
-            <div style="margin-top: 10px; font-size: 14px;">Invoice #INV-${Date.now()}</div>
-            <div style="font-size: 12px; color: #666;">Invoice Date: ${customerDetails.invoiceDate}</div>
-            <div style="font-size: 12px; color: #666;">Order Date: ${customerDetails.orderDate}</div>
+            <div style="margin-top: 8px; font-size: 12px;">Invoice #INV-${Date.now()}</div>
+            <div style="font-size: 10px; color: #666;">Order ID: ${order.id}</div>
+            <div style="font-size: 10px; color: #666;">Invoice Date: ${customerDetails.invoiceDate}</div>
+            <div style="font-size: 10px; color: #666;">Order Date: ${customerDetails.orderDate}</div>
           </div>
           
-          <div style="margin: 20px 0; padding: 15px; background: #f9f7f4; border-radius: 5px;">
-            <h3 style="color: #8b4513; margin-bottom: 10px;">Customer Details:</h3>
-            <p style="margin: 5px 0;"><strong>Name:</strong> ${customerDetails.name}</p>
-            <p style="margin: 5px 0;"><strong>Phone:</strong> ${customerDetails.phone}</p>
-            <p style="margin: 5px 0;"><strong>Address:</strong> ${customerDetails.address}</p>
-            <p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${customerDetails.deliveryDate}</p>
-            ${customerDetails.notes ? `<p style="margin: 5px 0;"><strong>Notes:</strong> ${customerDetails.notes}</p>` : ''}
+          <div style="margin: 15px 0; padding: 10px; background: #f9f7f4; border-radius: 5px;">
+            <h3 style="color: #8b4513; margin-bottom: 8px; font-size: 14px;">Customer Details:</h3>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Name:</strong> ${customerDetails.name}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Phone:</strong> ${customerDetails.phone}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Address:</strong> ${customerDetails.address}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Delivery Date:</strong> ${customerDetails.deliveryDate}</p>
+            ${customerDetails.notes ? `<p style="margin: 3px 0; font-size: 11px;"><strong>Notes:</strong> ${customerDetails.notes}</p>` : ''}
           </div>
           
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10px;">
             <thead>
               <tr style="background: #d4a574; color: white;">
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Item</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Quantity</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Price</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Total</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Item</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Qty</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Price</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Total</th>
               </tr>
             </thead>
             <tbody>
               ${cartItems.map(item => `
                 <tr>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.name}</td>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">₹${item.price}</td>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">₹${item.price * item.quantity}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${item.name}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">₹${item.price}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">₹${roundPrice(item.price * item.quantity)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
           
-          <div style="margin-top: 30px; text-align: right;">
-            <div style="margin: 5px 0;">
-              <span>Subtotal: ₹${subtotal}</span>
+          <div style="margin-top: 20px; text-align: right;">
+            <div style="margin: 3px 0; font-size: 11px;">
+              <span>Subtotal: ₹${roundPrice(subtotal)}</span>
             </div>
-            <div style="margin: 5px 0;">
-              <span>Shipping: ₹${shippingCharge}</span>
+            <div style="margin: 3px 0; font-size: 11px;">
+              <span>Shipping: ₹${roundPrice(shippingCharge)}</span>
             </div>
             ${discount > 0 ? `
-              <div style="margin: 5px 0;">
-                <span>Discount (${discount}%): -₹${discountAmount}</span>
+              <div style="margin: 3px 0; font-size: 11px;">
+                <span>Discount (${discount}%): -₹${roundPrice(discountAmount)}</span>
               </div>
             ` : ''}
-            <div style="font-size: 18px; font-weight: bold; color: #8b4513; border-top: 2px solid #d4a574; padding-top: 10px; margin-top: 10px;">
-              Total Amount: ₹${total}
+            <div style="font-size: 14px; font-weight: bold; color: #8b4513; border-top: 2px solid #d4a574; padding-top: 8px; margin-top: 8px;">
+              Total Amount: ₹${roundPrice(total)}
             </div>
           </div>
           
-          <div style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
+          <div style="text-align: center; margin-top: 20px; color: #666; font-size: 10px;">
             <p>Thank you for choosing PRIYUM Cakes & Bakes!</p>
             <p>Order Date: ${new Date().toLocaleDateString()}</p>
             <p>Made with ❤️ for delicious moments</p>
@@ -577,29 +593,32 @@ const Index = () => {
       invoiceHtml.style.left = '-9999px';
       document.body.appendChild(invoiceHtml);
 
-      // Convert to canvas then PDF
+      // Convert to canvas then PDF with optimized settings for smaller file size
       const canvas = await html2canvas(invoiceHtml, {
-        scale: 2,
+        scale: 1.5, // Reduced from 2 to 1.5 for smaller file size
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        imageTimeout: 0,
+        logging: false,
+        removeContainer: true
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.8); // Use JPEG with 80% quality instead of PNG
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const pageHeight = 295;
+      const imgWidth = 190; // Reduced from 210 to 190 for better fit
+      const pageHeight = 277; // Reduced from 295 to 277 for better fit
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight); // Added 10px margin
       heightLeft -= pageHeight;
 
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
 
@@ -608,9 +627,9 @@ const Index = () => {
         invoiceHtml.parentNode.removeChild(invoiceHtml);
       }
 
-      // Download PDF with customer name in filename
+      // Download PDF with customer name and order ID in filename
       const safeCustomerName = customerDetails.name.replace(/[^a-zA-Z0-9]/g, '-');
-      pdf.save(`${safeCustomerName}-invoice-${Date.now()}.pdf`);
+      pdf.save(`${safeCustomerName}-invoice-${order.id.slice(0, 8)}.pdf`);
 
       toast({
         title: "PDF Invoice Generated! 🎉",
@@ -639,7 +658,7 @@ const Index = () => {
         variant: "destructive"
       });
     } finally {
-      setIsGeneratingInvoice(false);
+      setIsGeneratingPDF(false);
     }
   };
 
@@ -660,7 +679,7 @@ const Index = () => {
             </div>
             
             <div className="flex items-center space-x-2">
-              <Dialog open={showInvoiceSettings} onOpenChange={setShowInvoiceSettings}>
+              <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Receipt className="w-4 h-4 mr-2" />
@@ -712,10 +731,10 @@ const Index = () => {
                      
                   </div>
                   <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setShowInvoiceSettings(false)}>
+                    <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={() => { saveInvoiceSettings(); setShowInvoiceSettings(false); }}>
+                    <Button onClick={() => { saveInvoiceSettings(); setIsSettingsOpen(false); }}>
                       Save Settings
                     </Button>
                   </div>
@@ -757,35 +776,80 @@ const Index = () => {
               <CardHeader>
                 <CardTitle>Select Products</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {products.map((product) => (
-                  <div key={product.id} className="flex items-center space-x-3 p-3 bg-background rounded-lg border">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="w-16 h-16 object-cover rounded-lg"
-                    />
-                    <div className="flex-1">
-                      <h4 className="font-medium text-foreground text-sm">{product.name}</h4>
-                      <p className="text-xs text-muted-foreground">{product.description}</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-primary">₹{product.price}</p>
-                        {Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
-                          <Badge variant="secondary" className="text-xs">
-                            {product.weight_options.length} sizes
+              <CardContent>
+                {/* Category Tabs */}
+                <Tabs defaultValue={categories[0]} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 mb-4">
+                    {categories.map((category) => (
+                      <TabsTrigger key={category} value={category} className="text-xs">
+                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  
+                  {categories.map((category) => (
+                    <TabsContent key={category} value={category}>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold">
+                            {category.charAt(0).toUpperCase() + category.slice(1)}
+                          </h4>
+                          <Badge variant="outline" className="text-xs">
+                            {products.filter(p => p.category === category).length} products
                           </Badge>
-                        )}
+                        </div>
+                        
+                        {(() => {
+                          const categoryProducts = products.filter(p => p.category === category);
+                          
+                          if (categoryProducts.length === 0) {
+                            return (
+                              <div className="text-center py-6">
+                                <div className="text-muted-foreground">
+                                  <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                  <p className="text-sm">No products in this category</p>
+                                </div>
+                              </div>
+                            );
+                          }
+                          
+                          return (
+                            <div className="space-y-3">
+                              {categoryProducts.map((product) => (
+                                <div key={product.id} className="flex items-center space-x-3 p-3 bg-background rounded-lg border">
+                                  <img
+                                    src={product.image}
+                                    alt={product.name}
+                                    className="w-16 h-16 object-cover rounded-lg"
+                                  />
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-foreground text-sm">{product.name}</h4>
+                                    <p className="text-xs text-muted-foreground">{product.description}</p>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-bold text-primary">₹{product.price}</p>
+                                      {Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {product.weight_options.length} sizes
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    onClick={() => handleSelectWeight(product)}
+                                    size="sm"
+                                    variant="outline"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
-                    </div>
-                    <Button
-                      onClick={() => handleSelectWeight(product)}
-                      size="sm"
-                      variant="outline"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
+                    </TabsContent>
+                  ))}
+                </Tabs>
               </CardContent>
             </Card>
           </div>
@@ -855,7 +919,7 @@ const Index = () => {
                         </Button>
                       </div>
                       <div className="font-medium text-foreground text-sm">
-                        ₹{item.price * item.quantity}
+                        ₹{roundPrice(item.price * item.quantity)}
                       </div>
                     </div>
                   ))
@@ -997,13 +1061,13 @@ const Index = () => {
                 
                 <Button
                   onClick={generateInvoice}
-                  disabled={isGeneratingInvoice || cartItems.length === 0}
+                  disabled={isGeneratingPDF || cartItems.length === 0}
                   className="w-full shadow-golden"
                   size="lg"
                   variant="hero"
                 >
                   <Receipt className="w-4 h-4 mr-2" />
-                  {isGeneratingInvoice ? "Generating Invoice..." : "Generate & Download PDF Invoice"}
+                  {isGeneratingPDF ? "Generating Invoice..." : "Generate & Download PDF Invoice"}
                 </Button>
               </CardContent>
             </Card>
@@ -1012,7 +1076,7 @@ const Index = () => {
       </div>
 
       {/* Weight Selector Dialog */}
-      <Dialog open={showWeightSelector} onOpenChange={setShowWeightSelector}>
+      <Dialog open={isWeightDialogOpen} onOpenChange={setIsWeightDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Select Weight & Price</DialogTitle>

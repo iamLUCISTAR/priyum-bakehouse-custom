@@ -28,6 +28,13 @@ const ProductQuickView = ({ product, contactInfo, children }: ProductQuickViewPr
     return `₹${price}`;
   };
 
+  const getCookieCountInfo = (product: Product) => {
+    if (product.category?.toLowerCase() === 'cookies') {
+      return '10-11 cookies approx';
+    }
+    return null;
+  };
+
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
@@ -89,6 +96,14 @@ const ProductQuickView = ({ product, contactInfo, children }: ProductQuickViewPr
                     ₹{product.price}
                   </Badge>
                 </div>
+                {/* Cookie Count Information */}
+                {getCookieCountInfo(product) && (
+                  <div className="mt-2 text-center">
+                    <span className="text-sm text-amber-700 font-medium bg-amber-50 px-3 py-1 rounded-full">
+                      {getCookieCountInfo(product)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Weight Options */}

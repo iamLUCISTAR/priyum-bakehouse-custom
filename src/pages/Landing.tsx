@@ -96,7 +96,7 @@ const Landing = () => {
     let filtered = products.filter(product => {
       // Filter by category
       const normalizedCategory = product.category 
-        ? product.category.charAt(0).toUpperCase() + product.category.slice(1).toLowerCase()
+        ? product.category.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
         : "Others";
       
       if (normalizedCategory !== selectedCategory) return false;
@@ -154,9 +154,9 @@ const Landing = () => {
   };
 
   const groupedProducts = filteredProducts.reduce((acc, product) => {
-    // Normalize category to match UI categories (capitalize first letter)
+    // Normalize category to match UI categories (capitalize first letter of each word)
     const normalizedCategory = product.category 
-      ? product.category.charAt(0).toUpperCase() + product.category.slice(1).toLowerCase()
+      ? product.category.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
       : "Others";
     
     // Parse weight_options if it's a string
@@ -174,7 +174,7 @@ const Landing = () => {
     return acc;
   }, {} as Record<string, Product[]>);
 
-  const categories = ["Cookies", "Brownies"];
+  const categories = ["Cookies", "Brownies", "Eggless Brownies"];
   
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
@@ -194,6 +194,13 @@ const Landing = () => {
       return `₹${price} (${weight}${unit})`;
     }
     return `₹${price}`;
+  };
+
+  const getCookieCountInfo = (product: Product) => {
+    if (product.category?.toLowerCase() === 'cookies') {
+      return '10-11 cookies approx';
+    }
+    return null;
   };
 
   const formatStatus = (status: string) => {
@@ -549,12 +556,12 @@ const Landing = () => {
         {/* Desktop Tabs */}
         <div className="hidden sm:block">
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 bg-amber-100/70 backdrop-blur-sm p-1 rounded-xl shadow-sm">
+            <TabsList className="flex w-full justify-center mb-8 bg-amber-100/70 backdrop-blur-sm p-2 rounded-xl shadow-sm gap-2">
             {categories.map((category) => (
               <TabsTrigger 
                 key={category} 
                 value={category}
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white rounded-lg font-medium transition-all duration-200"
+                className="flex-1 min-w-0 px-6 py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white rounded-lg font-medium transition-all duration-200 text-sm sm:text-base"
               >
                 {category}
               </TabsTrigger>
@@ -737,6 +744,14 @@ const Landing = () => {
                           ₹{selectedProduct.price}
                         </Badge>
                       </div>
+                      {/* Cookie Count Information */}
+                      {getCookieCountInfo(selectedProduct) && (
+                        <div className="mt-2 text-center">
+                          <span className="text-sm text-amber-700 font-medium bg-amber-50 px-3 py-1 rounded-full">
+                            {getCookieCountInfo(selectedProduct)}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Weight Options */}

@@ -117,7 +117,7 @@ export default function Admin() {
     address: ""
   });
 
-  const categories = ["cookies", "brownies", "pastries", "cakes"];
+  const categories = ["cookies", "brownies", "eggless brownies"];
   const weightUnits = ["grams", "kg", "pieces"];
 
   const formatDate = (dateString: string) => {
@@ -875,6 +875,16 @@ export default function Admin() {
     }
   };
 
+  // Round prices for invoice generation
+  const roundPrice = (price: number): number => {
+    const decimal = price - Math.floor(price);
+    if (decimal >= 0.5) {
+      return Math.ceil(price);
+    } else {
+      return Math.floor(price);
+    }
+  };
+
   const generateOrderPDF = async (order: Order, items: OrderItem[]) => {
     setIsGeneratingPDF(true);
 
@@ -886,68 +896,69 @@ export default function Admin() {
       // Create a temporary HTML element for PDF generation
       const invoiceHtml = document.createElement('div');
       invoiceHtml.innerHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 40px; background: white; width: 800px;">
-          <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #d4a574; padding-bottom: 20px;">
-            <div style="color: #8b4513; font-size: 32px; font-weight: bold; margin-bottom: 5px;">${invoiceSettings.businessName}</div>
-            <div style="color: #d4a574; font-size: 14px;">${invoiceSettings.businessSubtitle}</div>
-            <div style="margin-top: 10px; color: #666; font-size: 12px;">
+        <div style="font-family: Arial, sans-serif; padding: 20px; background: white; width: 600px;">
+          <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #d4a574; padding-bottom: 15px;">
+            <div style="color: #8b4513; font-size: 24px; font-weight: bold; margin-bottom: 5px;">${invoiceSettings.businessName}</div>
+            <div style="color: #d4a574; font-size: 12px;">${invoiceSettings.businessSubtitle}</div>
+            <div style="margin-top: 8px; color: #666; font-size: 10px;">
               📞 ${invoiceSettings.phone} | 📧 ${invoiceSettings.email}
             </div>
-            <div style="margin-top: 10px; font-size: 14px;">Invoice #INV-${order.id.slice(0, 8)}</div>
-            <div style="font-size: 12px; color: #666;">Invoice Date: ${order.custom_invoice_date ? formatDate(order.custom_invoice_date) : formatDate(new Date().toISOString())}</div>
-            <div style="font-size: 12px; color: #666;">Order Date: ${order.custom_order_date ? formatDate(order.custom_order_date) : formatDate(order.order_date)}</div>
+            <div style="margin-top: 8px; font-size: 12px;">Invoice #INV-${order.id.slice(0, 8)}</div>
+            <div style="font-size: 10px; color: #666;">Order ID: ${order.id}</div>
+            <div style="font-size: 10px; color: #666;">Invoice Date: ${order.custom_invoice_date ? formatDate(order.custom_invoice_date) : formatDate(new Date().toISOString())}</div>
+            <div style="font-size: 10px; color: #666;">Order Date: ${order.custom_order_date ? formatDate(order.custom_order_date) : formatDate(order.order_date)}</div>
           </div>
           
-          <div style="margin: 20px 0; padding: 15px; background: #f9f7f4; border-radius: 5px;">
-            <h3 style="color: #8b4513; margin-bottom: 10px;">Customer Details:</h3>
-            <p style="margin: 5px 0;"><strong>Name:</strong> ${order.customer_name}</p>
-            <p style="margin: 5px 0;"><strong>Phone:</strong> ${order.customer_phone || 'N/A'}</p>
-            <p style="margin: 5px 0;"><strong>Address:</strong> ${order.customer_address || 'N/A'}</p>
-            ${order.delivery_date ? `<p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${formatDate(order.delivery_date)}</p>` : ''}
-            ${order.shipment_number ? `<p style="margin: 5px 0;"><strong>Shipment Number:</strong> ${order.shipment_number}</p>` : ''}
+          <div style="margin: 15px 0; padding: 10px; background: #f9f7f4; border-radius: 5px;">
+            <h3 style="color: #8b4513; margin-bottom: 8px; font-size: 14px;">Customer Details:</h3>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Name:</strong> ${order.customer_name}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Phone:</strong> ${order.customer_phone || 'N/A'}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Address:</strong> ${order.customer_address || 'N/A'}</p>
+            ${order.delivery_date ? `<p style="margin: 3px 0; font-size: 11px;"><strong>Delivery Date:</strong> ${formatDate(order.delivery_date)}</p>` : ''}
+            ${order.shipment_number ? `<p style="margin: 3px 0; font-size: 11px;"><strong>Shipment Number:</strong> ${order.shipment_number}</p>` : ''}
           </div>
           
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10px;">
             <thead>
               <tr style="background: #d4a574; color: white;">
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Item</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Weight</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Quantity</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Price</th>
-                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Total</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Item</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Weight</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Qty</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Price</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Total</th>
               </tr>
             </thead>
             <tbody>
               ${items.map(item => `
                 <tr>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.product_name}</td>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.weight ? `${item.weight} ${item.weight_unit}` : 'N/A'}</td>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">₹${item.product_price}</td>
-                  <td style="padding: 12px; border-bottom: 1px solid #ddd;">₹${item.total}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${item.product_name}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${item.weight ? `${item.weight} ${item.weight_unit}` : 'N/A'}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">₹${roundPrice(item.product_price)}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">₹${roundPrice(item.total)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
           
-          <div style="margin-top: 30px; text-align: right;">
-            <div style="margin: 5px 0;">
-              <span>Subtotal: ₹${order.subtotal || 0}</span>
+          <div style="margin-top: 20px; text-align: right;">
+            <div style="margin: 3px 0; font-size: 11px;">
+              <span>Subtotal: ₹${roundPrice(order.subtotal || 0)}</span>
             </div>
-            <div style="margin: 5px 0;">
-              <span>Shipping: ₹${order.shipping_charges || 0}</span>
+            <div style="margin: 3px 0; font-size: 11px;">
+              <span>Shipping: ₹${roundPrice(order.shipping_charges || 0)}</span>
             </div>
             ${order.discount_amount && order.discount_amount > 0 ? `
-              <div style="margin: 5px 0;">
-                <span>Discount: -₹${order.discount_amount}</span>
+              <div style="margin: 3px 0; font-size: 11px;">
+                <span>Discount: -₹${roundPrice(order.discount_amount)}</span>
               </div>
             ` : ''}
-            <div style="font-size: 18px; font-weight: bold; color: #8b4513; border-top: 2px solid #d4a574; padding-top: 10px; margin-top: 10px;">
-              Total Amount: ₹${order.total}
+            <div style="font-size: 14px; font-weight: bold; color: #8b4513; border-top: 2px solid #d4a574; padding-top: 8px; margin-top: 8px;">
+              Total Amount: ₹${roundPrice(order.total)}
             </div>
           </div>
           
-          <div style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
+          <div style="text-align: center; margin-top: 20px; color: #666; font-size: 10px;">
             <p>Thank you for choosing PRIYUM Cakes & Bakes!</p>
             <p>Order Date: ${formatDate(order.order_date)}</p>
             <p>Made with ❤️ for delicious moments</p>
@@ -960,29 +971,32 @@ export default function Admin() {
       invoiceHtml.style.left = '-9999px';
       document.body.appendChild(invoiceHtml);
 
-      // Convert to canvas then PDF
+      // Convert to canvas then PDF with optimized settings for smaller file size
       const canvas = await html2canvas(invoiceHtml, {
-        scale: 2,
+        scale: 1.5, // Reduced from 2 to 1.5 for smaller file size
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        imageTimeout: 0,
+        logging: false,
+        removeContainer: true
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.8); // Use JPEG with 80% quality instead of PNG
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const pageHeight = 295;
+      const imgWidth = 190; // Reduced from 210 to 190 for better fit
+      const pageHeight = 277; // Reduced from 295 to 277 for better fit
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight); // Added 10px margin
       heightLeft -= pageHeight;
 
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
 
@@ -991,7 +1005,7 @@ export default function Admin() {
         invoiceHtml.parentNode.removeChild(invoiceHtml);
       }
 
-      // Download PDF with customer name in filename
+      // Download PDF with customer name and order ID in filename
       const safeCustomerName = order.customer_name.replace(/[^a-zA-Z0-9]/g, '-');
       pdf.save(`${safeCustomerName}-invoice-${order.id.slice(0, 8)}.pdf`);
 
@@ -1301,74 +1315,114 @@ export default function Admin() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Weight Options</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            <img
-                              src={product.image || "/placeholder.svg"}
-                              alt={product.name}
-                              className="w-12 h-12 object-cover rounded-lg"
-                            />
-                            <div>
-                              <p className="font-medium">{product.name}</p>
-                              <p className="text-sm text-muted-foreground">{product.description}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{product.category}</Badge>
-                        </TableCell>
-                        <TableCell>₹{product.price}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <p>Base: {product.base_weight} {product.weight_unit}</p>
-                            {product.weight_options && product.weight_options.length > 0 && (
-                              <p className="text-muted-foreground">
-                                +{product.weight_options.length} options
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={product.stock > 10 ? "default" : "destructive"}>
-                            {product.stock} units
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleEditProduct(product)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteProduct(product.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                {/* Category Tabs */}
+                <Tabs defaultValue={categories[0]} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 mb-6">
+                    {categories.map((category) => (
+                      <TabsTrigger key={category} value={category} className="text-sm">
+                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                      </TabsTrigger>
                     ))}
-                  </TableBody>
-                </Table>
+                  </TabsList>
+                  
+                  {categories.map((category) => (
+                    <TabsContent key={category} value={category}>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold">
+                            {category.charAt(0).toUpperCase() + category.slice(1)} Products
+                          </h3>
+                          <Badge variant="outline">
+                            {products.filter(p => p.category === category).length} products
+                          </Badge>
+                        </div>
+                        
+                        {(() => {
+                          const categoryProducts = products.filter(p => p.category === category);
+                          
+                          if (categoryProducts.length === 0) {
+                            return (
+                              <div className="text-center py-8">
+                                <div className="text-muted-foreground">
+                                  <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                  <p>No products in this category yet.</p>
+                                  <p className="text-sm">Add a new product to get started.</p>
+                                </div>
+                              </div>
+                            );
+                          }
+                          
+                          return (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Product</TableHead>
+                                  <TableHead>Price</TableHead>
+                                  <TableHead>Weight Options</TableHead>
+                                  <TableHead>Stock</TableHead>
+                                  <TableHead>Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {categoryProducts.map((product) => (
+                                  <TableRow key={product.id}>
+                                    <TableCell>
+                                      <div className="flex items-center space-x-3">
+                                        <img
+                                          src={product.image || "/placeholder.svg"}
+                                          alt={product.name}
+                                          className="w-12 h-12 object-cover rounded-lg"
+                                        />
+                                        <div>
+                                          <p className="font-medium">{product.name}</p>
+                                          <p className="text-sm text-muted-foreground">{product.description}</p>
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>₹{product.price}</TableCell>
+                                    <TableCell>
+                                      <div className="text-sm">
+                                        <p>Base: {product.base_weight} {product.weight_unit}</p>
+                                        {product.weight_options && product.weight_options.length > 0 && (
+                                          <p className="text-muted-foreground">
+                                            +{product.weight_options.length} options
+                                          </p>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant={product.stock > 10 ? "default" : "destructive"}>
+                                        {product.stock} units
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex space-x-2">
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm"
+                                          onClick={() => handleEditProduct(product)}
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleDeleteProduct(product.id)}
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          );
+                        })()}
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
@@ -2006,7 +2060,7 @@ export default function Admin() {
                         const shipping = parseFloat(e.target.value) || 0;
                         const subtotal = editingOrder.subtotal || 0;
                         const discount = editingOrder.discount_amount || 0;
-                        const total = subtotal + shipping - discount;
+                        const total = roundPrice(subtotal + shipping - discount);
                         setEditingOrder(prev => prev ? { 
                           ...prev, 
                           shipping_charges: shipping,
@@ -2026,7 +2080,7 @@ export default function Admin() {
                         const discount = parseFloat(e.target.value) || 0;
                         const subtotal = editingOrder.subtotal || 0;
                         const shipping = editingOrder.shipping_charges || 0;
-                        const total = subtotal + shipping - discount;
+                        const total = roundPrice(subtotal + shipping - discount);
                         setEditingOrder(prev => prev ? { 
                           ...prev, 
                           discount_amount: discount,
@@ -2106,14 +2160,14 @@ export default function Admin() {
                               const quantity = parseInt(e.target.value) || 1;
                               const updated = [...editingOrderItems];
                               updated[index].quantity = quantity;
-                              updated[index].total = item.product_price * quantity;
+                              updated[index].total = roundPrice(item.product_price * quantity);
                               setEditingOrderItems(updated);
                               
                               // Recalculate order totals
                               const newSubtotal = updated.reduce((sum, i) => sum + i.total, 0);
                               const shipping = editingOrder.shipping_charges || 0;
                               const discount = editingOrder.discount_amount || 0;
-                              const newTotal = newSubtotal + shipping - discount;
+                              const newTotal = roundPrice(newSubtotal + shipping - discount);
                               setEditingOrder(prev => prev ? { 
                                 ...prev, 
                                 subtotal: newSubtotal,
@@ -2132,14 +2186,14 @@ export default function Admin() {
                               const price = parseFloat(e.target.value) || 0;
                               const updated = [...editingOrderItems];
                               updated[index].product_price = price;
-                              updated[index].total = price * item.quantity;
+                              updated[index].total = roundPrice(price * item.quantity);
                               setEditingOrderItems(updated);
                               
                               // Recalculate order totals
                               const newSubtotal = updated.reduce((sum, i) => sum + i.total, 0);
                               const shipping = editingOrder.shipping_charges || 0;
                               const discount = editingOrder.discount_amount || 0;
-                              const newTotal = newSubtotal + shipping - discount;
+                              const newTotal = roundPrice(newSubtotal + shipping - discount);
                               setEditingOrder(prev => prev ? { 
                                 ...prev, 
                                 subtotal: newSubtotal,
@@ -2166,19 +2220,19 @@ export default function Admin() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Subtotal</Label>
-                      <p className="text-lg font-medium">₹{editingOrder.subtotal || 0}</p>
+                      <p className="text-lg font-medium">₹{roundPrice(editingOrder.subtotal || 0)}</p>
                     </div>
                     <div>
                       <Label>Shipping</Label>
-                      <p className="text-lg font-medium">₹{editingOrder.shipping_charges || 0}</p>
+                      <p className="text-lg font-medium">₹{roundPrice(editingOrder.shipping_charges || 0)}</p>
                     </div>
                     <div>
                       <Label>Discount</Label>
-                      <p className="text-lg font-medium">₹{editingOrder.discount_amount || 0}</p>
+                      <p className="text-lg font-medium">₹{roundPrice(editingOrder.discount_amount || 0)}</p>
                     </div>
                     <div>
                       <Label>Total</Label>
-                      <p className="text-xl font-bold text-primary">₹{editingOrder.total}</p>
+                      <p className="text-xl font-bold text-primary">₹{roundPrice(editingOrder.total)}</p>
                     </div>
                   </div>
                 </div>
