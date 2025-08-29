@@ -4,10 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { Phone, Mail, ShoppingBag, Clock, MapPin, Star, X } from "lucide-react";
+import { Phone, Mail, ShoppingBag, Clock, MapPin, Star, X, Tag } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
+
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface ProductQuickViewProps {
   product: Product;
@@ -16,10 +24,13 @@ interface ProductQuickViewProps {
     email?: string;
   } | null;
   children: React.ReactNode;
+  prefetchedTags?: Tag[];
+  onAddToCart?: (product: Product) => void;
 }
 
-const ProductQuickView = ({ product, contactInfo, children }: ProductQuickViewProps) => {
+const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAddToCart }: ProductQuickViewProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const productTags: Tag[] = prefetchedTags || [];
 
   const formatPrice = (price: number, weight?: number, unit?: string) => {
     if (weight && unit) {
@@ -34,6 +45,8 @@ const ProductQuickView = ({ product, contactInfo, children }: ProductQuickViewPr
     }
     return null;
   };
+
+  // Tags are prefetched and passed in so they render immediately
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -78,6 +91,42 @@ const ProductQuickView = ({ product, contactInfo, children }: ProductQuickViewPr
                 <p className="text-amber-700 leading-relaxed">
                   {product.description}
                 </p>
+              </div>
+            )}
+
+            {/* Additional Information */}
+            {product.info && (
+              <div>
+                <h3 className="text-lg font-semibold text-amber-800 mb-2">Additional Information</h3>
+                <p className="text-amber-700 leading-relaxed">
+                  {product.info}
+                </p>
+              </div>
+            )}
+
+            {/* Tags */}
+            {productTags.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-amber-800 mb-2 flex items-center">
+                  <Tag className="w-4 h-4 mr-2" />
+                  Tags
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {productTags.map((tag) => (
+                    <Badge 
+                      key={tag.id}
+                      variant="outline"
+                      className="text-sm"
+                      style={{ 
+                        borderColor: tag.color, 
+                        color: tag.color,
+                        backgroundColor: `${tag.color}10`
+                      }}
+                    >
+                      {tag.name}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -139,36 +188,20 @@ const ProductQuickView = ({ product, contactInfo, children }: ProductQuickViewPr
               </div>
             </div>
 
-            {/* Contact for Orders */}
-            <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 border border-amber-200">
-              <h4 className="font-semibold text-amber-800 mb-2">Place Your Order</h4>
-              <p className="text-sm text-amber-700 mb-4">
-                Contact us directly to place your order for this delicious treat!
-              </p>
-              <div className="flex flex-col gap-3">
+            {/* Add to Cart Only */}
+            {onAddToCart && (
+              <div>
                 <Button
-                  asChild
                   size="lg"
-                  className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white"
-                >
-                  <a href="https://wa.me/919677349169" target="_blank" rel="noopener noreferrer">
-                    <Phone className="h-4 w-4 mr-2" />
-                    WhatsApp Now
-                  </a>
-                </Button>
-                <Button
-                  asChild
                   variant="outline"
-                  size="lg"
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                  onClick={() => onAddToCart(product)}
                 >
-                  <a href="mailto:priyum.orders@gmail.com">
-                    <Mail className="h-4 w-4 mr-2" />
-                    Email Us
-                  </a>
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  Add to Cart
                 </Button>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </SheetContent>

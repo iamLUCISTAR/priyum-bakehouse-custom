@@ -7,14 +7,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { Phone, Mail, Instagram, Heart, X, Menu, Star, ShoppingBag, Clock, MapPin } from "lucide-react";
+import { Phone, Mail, Instagram, Heart, X, Menu, Star, ShoppingBag, Clock, MapPin, Tag, ShoppingCart, Trash2 } from "lucide-react";
 import ProductQuickView from "@/components/ProductQuickView";
 import MobileSearchFilter from "@/components/MobileSearchFilter";
 import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+// Removed custom calendar popover; using native date input
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
+
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface InvoiceSettings {
   phone: string;
@@ -27,6 +38,15 @@ interface FilterOptions {
   sortBy: string;
   availability: string;
 }
+interface CartItem {
+  id: string; // productId-variantKey
+  name: string;
+  price: number;
+  quantity: number;
+  image: string | null;
+  selectedWeight?: number | null;
+  selectedUnit?: string | null;
+}
 
 const Landing = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,6 +54,8 @@ const Landing = () => {
   const [contactInfo, setContactInfo] = useState<InvoiceSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productTagsMap, setProductTagsMap] = useState<Record<string, Tag[]>>({});
+  const [selectedProductTags, setSelectedProductTags] = useState<Tag[]>([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("Cookies");
@@ -48,6 +70,40 @@ const Landing = () => {
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const { toast } = useToast();
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isSizeDialogOpen, setIsSizeDialogOpen] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState("");
+  // using native date input for selection
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('pb_cart');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setCartItems(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse saved cart:', e);
+    }
+  }, []);
+
+  // Persist cart to localStorage on changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('pb_cart', JSON.stringify(cartItems));
+    } catch (e) {
+      console.error('Failed to save cart:', e);
+    }
+  }, [cartItems]);
 
   useEffect(() => {
     loadData();
@@ -69,6 +125,43 @@ const Landing = () => {
         console.error("Error loading products:", productsError);
       } else if (productsData) {
         setProducts(productsData);
+        // After products load, fetch tags for these products
+        try {
+          const productIds = productsData.map(p => p.id);
+          if (productIds.length > 0) {
+            // Fetch all product_tag rows for these products
+            const { data: ptRows, error: ptErr } = await supabase
+              .from('product_tags')
+              .select('product_id, tag_id')
+              .in('product_id', productIds);
+
+            if (ptErr) throw ptErr;
+
+            const uniqueTagIds = Array.from(new Set((ptRows || []).map(r => r.tag_id)));
+            let tagsById: Record<string, Tag> = {};
+            if (uniqueTagIds.length > 0) {
+              const { data: tagsRows, error: tagsErr } = await supabase
+                .from('tags')
+                .select('*')
+                .in('id', uniqueTagIds);
+              if (tagsErr) throw tagsErr;
+              (tagsRows || []).forEach(t => { tagsById[t.id] = t as unknown as Tag; });
+            }
+
+            const map: Record<string, Tag[]> = {};
+            (ptRows || []).forEach(r => {
+              if (!map[r.product_id]) map[r.product_id] = [];
+              const tag = tagsById[r.tag_id];
+              if (tag) map[r.product_id].push(tag);
+            });
+            setProductTagsMap(map);
+          } else {
+            setProductTagsMap({});
+          }
+        } catch (e) {
+          console.error('Error fetching product tags map:', e);
+          setProductTagsMap({});
+        }
         console.log("Products loaded:", productsData.length);
       }
 
@@ -176,8 +269,132 @@ const Landing = () => {
 
   const categories = ["Cookies", "Brownies", "Eggless Brownies"];
   
-  const handleProductClick = (product: Product) => {
+  const fetchProductTags = async (productId: string) => {
+    try {
+      // Fetch product tags for this specific product
+      const { data: productTagData, error: productTagError } = await supabase
+        .from('product_tags')
+        .select('tag_id')
+        .eq('product_id', productId);
+
+      if (productTagError) throw productTagError;
+
+      if (productTagData && productTagData.length > 0) {
+        // Get the tag IDs
+        const tagIds = productTagData.map(pt => pt.tag_id);
+        
+        // Fetch the actual tag details
+        const { data: tagsData, error: tagsError } = await supabase
+          .from('tags')
+          .select('*')
+          .in('id', tagIds)
+          .order('name');
+
+        if (tagsError) throw tagsError;
+        
+        setSelectedProductTags(tagsData || []);
+      } else {
+        setSelectedProductTags([]);
+      }
+    } catch (error) {
+      console.error('Error fetching product tags:', error);
+      setSelectedProductTags([]);
+    }
+  };
+  
+  const addToCart = (product: Product) => {
+    // Open size selection dialog
+    setPendingProduct(product);
+    setIsSizeDialogOpen(true);
+  };
+
+  const confirmAddToCart = (product: Product, weight: number | null, unit: string | null, price: number) => {
+    const variantKey = weight && unit ? `${weight}${unit}` : 'base';
+    const id = `${product.id}-${variantKey}`;
+    const displayName = weight && unit ? `${product.name} (${weight}${unit})` : product.name || 'Product';
+    setCartItems(prev => {
+      const existing = prev.find(ci => ci.id === id);
+      if (existing) {
+        return prev.map(ci => ci.id === id ? { ...ci, quantity: ci.quantity + 1 } : ci);
+      }
+      return [...prev, {
+        id,
+        name: displayName,
+        price: price || 0,
+        quantity: 1,
+        image: product.image || null,
+        selectedWeight: weight,
+        selectedUnit: unit,
+      }];
+    });
+    toast({ title: "Added to cart", description: `${displayName} added to cart.` });
+  };
+
+  const updateCartQuantity = (id: string, quantity: number) => {
+    setCartItems(prev => prev
+      .map(ci => ci.id === id ? { ...ci, quantity: Math.max(1, quantity) } : ci)
+      .filter(ci => ci.quantity > 0)
+    );
+  };
+
+  const removeFromCart = (id: string) => {
+    setCartItems(prev => prev.filter(ci => ci.id !== id));
+  };
+
+  const clearCart = () => setCartItems([]);
+
+  const cartSubtotal = cartItems.reduce((sum, ci) => sum + ci.price * ci.quantity, 0);
+
+  const openCheckoutForm = () => {
+    if (cartItems.length === 0) {
+      toast({ title: "Cart is empty", description: "Please add items to cart before checkout.", variant: "destructive" });
+      return;
+    }
+    // Swap the cart popup with the customer details popup
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+  };
+
+  const placeOrderViaWhatsApp = () => {
+    if (!customerName || !customerPhone || !customerAddress) {
+      toast({ title: "Missing details", description: "Please enter name, phone and address.", variant: "destructive" });
+      return;
+    }
+    const adminNumber = (contactInfo?.phone || "+91 9677349169").replace(/[^\d]/g, "");
+    const lines: string[] = [];
+    lines.push(`New Order Request`);
+    lines.push("");
+    lines.push(`Customer Details:`);
+    lines.push(`- Name: ${customerName}`);
+    lines.push(`- Phone: ${customerPhone}`);
+    lines.push(`- Address: ${customerAddress}`);
+    if (deliveryDate) lines.push(`- Expected Delivery: ${deliveryDate}`);
+    lines.push("");
+    lines.push(`Order Items:`);
+    cartItems.forEach((item, idx) => {
+      lines.push(`${idx + 1}. ${item.name} x ${item.quantity} = ₹${item.price * item.quantity}`);
+    });
+    lines.push("");
+    lines.push(`Subtotal: ₹${cartSubtotal}`);
+    lines.push(`(Subtotal does not include shipping charges or discounts)`);
+    lines.push("");
+    lines.push(`Please confirm availability and provide final invoice total.`);
+    const text = encodeURIComponent(lines.join("\n"));
+    const url = `https://wa.me/${adminNumber}?text=${text}`;
+    window.open(url, "_blank");
+    setIsCheckoutOpen(false);
+    setIsCartOpen(false);
+  };
+
+  const handleProductClick = async (product: Product) => {
     setSelectedProduct(product);
+    // Prefer prefetched map for instant render; fallback to fetch if missing
+    const tags = productTagsMap[product.id];
+    if (tags && tags.length > 0) {
+      setSelectedProductTags(tags);
+    } else {
+      await fetchProductTags(product.id);
+    }
     setIsProductModalOpen(true);
   };
 
@@ -534,6 +751,141 @@ const Landing = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 pb-8 pt-8">
+        {/* Floating Cart Button */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <Button onClick={() => setIsCartOpen(true)} className="shadow-lg">
+            <ShoppingCart className="w-4 h-4 mr-2" /> Cart ({cartItems.reduce((s, i) => s + i.quantity, 0)})
+          </Button>
+        </div>
+
+        {/* Cart Sheet */}
+        <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
+          <DialogContent className="w-[92vw] max-w-2xl p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle>Your Cart</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              {cartItems.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">Your cart is empty</div>
+              ) : (
+                cartItems.map(item => (
+                  <div key={item.id} className="p-3 border rounded-lg">
+                    {/* Mobile layout */}
+                    <div className="flex flex-col gap-3 sm:hidden">
+                      <div className="flex items-center gap-3">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
+                        ) : (
+                          <div className="w-12 h-12 bg-amber-100 rounded" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{item.name}</div>
+                          <div className="text-sm text-muted-foreground">₹{item.price} each</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity - 1)}>-</Button>
+                          <div className="w-6 text-center text-sm">{item.quantity}</div>
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity + 1)}>+</Button>
+                        </div>
+                        <div className="font-medium">₹{item.price * item.quantity}</div>
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => removeFromCart(item.id)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Desktop layout */}
+                    <div className="hidden sm:grid sm:grid-cols-[48px,1fr,auto,auto,auto] sm:items-center sm:gap-4">
+                      <div className="flex items-center justify-center">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
+                        ) : (
+                          <div className="w-12 h-12 bg-amber-100 rounded" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{item.name}</div>
+                        <div className="text-sm text-muted-foreground">₹{item.price} each</div>
+                      </div>
+                      <div className="flex items-center gap-2 justify-center">
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity - 1)}>-</Button>
+                        <div className="w-6 text-center text-sm">{item.quantity}</div>
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity + 1)}>+</Button>
+                      </div>
+                      <div className="font-medium text-right">₹{item.price * item.quantity}</div>
+                      <div className="flex justify-end">
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => removeFromCart(item.id)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* Subtotal note */}
+            {cartItems.length > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                *The subtotal does not including shipping charges and discounts. The final total will be on your invoice after checkout!
+              </p>
+            )}
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-lg font-bold">Subtotal: ₹{cartSubtotal}</div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button variant="outline" className="flex-1 sm:flex-none" onClick={clearCart}>Clear</Button>
+                <Button className="flex-1 sm:flex-none" onClick={openCheckoutForm}>Checkout</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Checkout Form Modal (custom overlay, no dark blackout) */}
+        {isCheckoutOpen && (
+          <div className="fixed inset-0 z-[60]">
+            <div className="absolute inset-0 bg-black/80" onClick={() => setIsCheckoutOpen(false)} />
+            <div className="absolute left-1/2 top-1/2 w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 bg-background border rounded-lg shadow-xl p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold">Enter your details</h3>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setIsCheckoutOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="grid gap-3">
+                <div>
+                  <Label htmlFor="custName">Name</Label>
+                  <Input id="custName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Your name" />
+                </div>
+                <div>
+                  <Label htmlFor="custPhone">Phone</Label>
+                  <Input id="custPhone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Your phone number" />
+                </div>
+                <div>
+                  <Label htmlFor="custAddress">Address</Label>
+                  <Textarea id="custAddress" value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} placeholder="Complete delivery address" rows={3} />
+                </div>
+                <div>
+                  <Label htmlFor="custDate">Expected Delivery Date</Label>
+                  <Input
+                    id="custDate"
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                  />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    *We typically deliver orders within 3-4 days from the date of ordering. Delivery times may vary depending on your location.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>Cancel</Button>
+                <Button onClick={placeOrderViaWhatsApp}>Place Order</Button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Mobile Category Switcher */}
         <div className="sm:hidden mb-6">
           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -618,9 +970,28 @@ const Landing = () => {
                             {product.name}
                           </h3>
                           {product.description && (
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
+                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
                               {product.description}
                             </p>
+                          )}
+
+                          {productTagsMap[product.id] && productTagsMap[product.id].length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {productTagsMap[product.id].map(tag => (
+                                <Badge
+                                  key={tag.id}
+                                  variant="outline"
+                                  className="text-[10px]"
+                                  style={{
+                                    borderColor: tag.color,
+                                    color: tag.color,
+                                    backgroundColor: `${tag.color}10`
+                                  }}
+                                >
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                            </div>
                           )}
                           
                           <div className="space-y-3">
@@ -641,6 +1012,16 @@ const Landing = () => {
                             <span>Fresh Daily</span>
                           </div>
                         </div>
+                        <div className="mt-3 flex">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                            className="w-full"
+                          >
+                            <ShoppingCart className="w-3 h-3 mr-2" /> Add to Cart
+                          </Button>
+                        </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -651,7 +1032,12 @@ const Landing = () => {
                   <div key={product.id}>
                     {/* Mobile: ProductQuickView */}
                     <div className="sm:hidden">
-                      <ProductQuickView product={product} contactInfo={contactInfo}>
+                      <ProductQuickView 
+                        product={product} 
+                        contactInfo={contactInfo} 
+                        prefetchedTags={productTagsMap[product.id]}
+                        onAddToCart={addToCart}
+                      >
                         {ProductCard}
                       </ProductQuickView>
                     </div>
@@ -730,6 +1116,42 @@ const Landing = () => {
                     </div>
                   )}
 
+                  {/* Additional Information */}
+                  {selectedProduct.info && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-amber-800 mb-2">Additional Information</h3>
+                      <p className="text-amber-700 leading-relaxed">
+                        {selectedProduct.info}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  {selectedProductTags.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-amber-800 mb-2 flex items-center">
+                        <Tag className="w-4 h-4 mr-2" />
+                        Tags
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProductTags.map((tag) => (
+                          <Badge 
+                            key={tag.id}
+                            variant="outline"
+                            className="text-sm"
+                            style={{ 
+                              borderColor: tag.color, 
+                              color: tag.color,
+                              backgroundColor: `${tag.color}10`
+                            }}
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <h3 className="text-lg font-semibold text-amber-800 mb-3">Pricing</h3>
                     
@@ -787,36 +1209,18 @@ const Landing = () => {
                       </div>
                     </div>
 
-                  {/* Contact for Orders */}
-                  <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 border border-amber-200">
-                    <h4 className="font-semibold text-amber-800 mb-2">Place Your Order</h4>
-                      <p className="text-sm text-amber-700 mb-4">
-                      Contact us directly to place your order for this delicious treat!
-                    </p>
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <Button
-                          asChild
-                          size="lg"
-                          className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white flex-1"
-                        >
-                          <a href="https://wa.me/919677349169" target="_blank" rel="noopener noreferrer">
-                            <Phone className="h-4 w-4 mr-2" />
-                            WhatsApp Now
-                          </a>
-                        </Button>
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="lg"
-                          className="border-amber-300 text-amber-700 hover:bg-amber-50 flex-1"
-                        >
-                          <a href="mailto:priyum.orders@gmail.com">
-                            <Mail className="h-4 w-4 mr-2" />
-                            Email Us
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
+                  {/* Add to Cart Only */}
+                  <div>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                      onClick={() => selectedProduct && addToCart(selectedProduct)}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Add to Cart
+                    </Button>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -825,6 +1229,66 @@ const Landing = () => {
         </Dialog>
 
         {/* Order Status Modal */}
+        {/* Size Selection Dialog for Add to Cart */}
+        <Dialog open={isSizeDialogOpen} onOpenChange={setIsSizeDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Select Size & Add to Cart</DialogTitle>
+            </DialogHeader>
+            {pendingProduct && (
+              <div className="grid gap-3 py-2">
+                <div className="flex items-center space-x-3 mb-2">
+                  {pendingProduct.image ? (
+                    <img src={pendingProduct.image} alt={pendingProduct.name} className="w-12 h-12 object-cover rounded" />
+                  ) : (
+                    <div className="w-12 h-12 bg-amber-100 rounded" />
+                  )}
+                  <div>
+                    <div className="font-medium">{pendingProduct.name}</div>
+                    {pendingProduct.description && (
+                      <div className="text-xs text-muted-foreground line-clamp-1">{pendingProduct.description}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div 
+                  className="p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => {
+                    confirmAddToCart(pendingProduct, pendingProduct.base_weight || null, pendingProduct.weight_unit || null, pendingProduct.price);
+                    setIsSizeDialogOpen(false);
+                  }}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">
+                      {pendingProduct.base_weight || 0} {pendingProduct.weight_unit || ''} (Base)
+                    </span>
+                    <span className="font-bold text-primary">₹{pendingProduct.price}</span>
+                  </div>
+                </div>
+
+                {Array.isArray(pendingProduct.weight_options) && pendingProduct.weight_options.length > 0 && (
+                  <div className="space-y-2">
+                    {pendingProduct.weight_options.map((opt: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                        onClick={() => {
+                          confirmAddToCart(pendingProduct, opt.weight, opt.unit, opt.price);
+                          setIsSizeDialogOpen(false);
+                        }}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">{opt.weight} {opt.unit}</span>
+                          <span className="font-bold text-primary">₹{opt.price}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
         <Dialog open={showStatusModal} onOpenChange={setShowStatusModal}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-amber-50/95 backdrop-blur-sm border-amber-200 transition-all duration-300 ease-in-out transform scale-100 opacity-100 animate-modal-entrance">
             <DialogHeader className="transition-all duration-300 ease-in-out">
@@ -940,7 +1404,7 @@ const Landing = () => {
         <div className="container mx-auto px-4 py-8 sm:py-12">
           <div className="text-center space-y-6">
             <div className="flex items-center justify-center gap-2">
-              <h3 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">For Orders</h3>
+              <h3 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">For Bulk Orders</h3>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
               <a

@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Package, Users, BarChart3, Download, LogOut, Upload, X } from "lucide-react";
+import { Plus, Edit, Trash2, Package, Users, BarChart3, Download, LogOut, Upload, X, Tag } from "lucide-react";
 
 interface Product {
   id: string;
@@ -22,9 +22,25 @@ interface Product {
   image: string;
   category: string;
   stock: number;
+  info?: string | null;
   weight_options?: Array<{weight: number; price: number; unit: string}> | null;
   base_weight?: number | null;
   weight_unit?: string | null;
+}
+
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ProductTag {
+  id: string;
+  product_id: string;
+  tag_id: string;
+  created_at: string;
 }
 
 interface WeightOption {
@@ -88,12 +104,17 @@ export default function Admin() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [productTags, setProductTags] = useState<ProductTag[]>([]);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isEditProductOpen, setIsEditProductOpen] = useState(false);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [isAddTagOpen, setIsAddTagOpen] = useState(false);
+  const [isEditTagOpen, setIsEditTagOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
   
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -102,9 +123,18 @@ export default function Admin() {
     image: "",
     category: "",
     stock: "",
+    info: "",
     base_weight: "500",
     weight_unit: "grams"
   });
+  
+  const [newTag, setNewTag] = useState({
+    name: "",
+    color: "#3B82F6"
+  });
+  
+  const [selectedProductTags, setSelectedProductTags] = useState<string[]>([]);
+  const [editSelectedProductTags, setEditSelectedProductTags] = useState<string[]>([]);
   const [weightOptions, setWeightOptions] = useState<WeightOption[]>([]);
   const [editWeightOptions, setEditWeightOptions] = useState<WeightOption[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -133,6 +163,8 @@ export default function Admin() {
     fetchProducts();
     fetchOrders();
     fetchUsers();
+    fetchTags();
+    fetchProductTags();
     loadInvoiceSettings();
   }, []);
 
@@ -204,6 +236,41 @@ export default function Admin() {
     }
   };
 
+  const fetchTags = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setTags(data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch tags",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchProductTags = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('product_tags')
+        .select('*');
+
+      if (error) throw error;
+      setProductTags(data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch product tags",
+        variant: "destructive",
+      });
+    }
+  };
+
   const uploadImage = async (file: File) => {
     try {
       setUploadingImage(true);
@@ -270,7 +337,8 @@ export default function Admin() {
     }
 
     try {
-      const { error } = await supabase
+      // Insert the product
+      const { data: productData, error } = await supabase
         .from('products')
         .insert([{
           name: newProduct.name,
@@ -279,12 +347,29 @@ export default function Admin() {
           image: newProduct.image || null,
           category: newProduct.category || null,
           stock: parseInt(newProduct.stock) || 0,
+          info: newProduct.info || null,
           base_weight: parseFloat(newProduct.base_weight) || 500,
           weight_unit: newProduct.weight_unit || 'grams',
           weight_options: weightOptions.length > 0 ? JSON.stringify(weightOptions) : null
-        }]);
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Add product tags if any are selected
+      if (selectedProductTags.length > 0 && productData) {
+        const productTagData = selectedProductTags.map(tagId => ({
+          product_id: productData.id,
+          tag_id: tagId
+        }));
+
+        const { error: tagError } = await supabase
+          .from('product_tags')
+          .insert(productTagData);
+
+        if (tagError) throw tagError;
+      }
 
       toast({
         title: "Success",
@@ -298,12 +383,15 @@ export default function Admin() {
         image: "",
         category: "",
         stock: "",
+        info: "",
         base_weight: "500",
         weight_unit: "grams"
       });
       setWeightOptions([]);
+      setSelectedProductTags([]);
       setIsAddProductOpen(false);
       fetchProducts();
+      fetchProductTags();
     } catch (error) {
       toast({
         title: "Error",
@@ -322,10 +410,16 @@ export default function Admin() {
       image: product.image || "",
       category: product.category || "",
       stock: product.stock.toString(),
+      info: product.info || "",
       base_weight: product.base_weight?.toString() || "500",
       weight_unit: product.weight_unit || "grams"
     });
     setEditWeightOptions(product.weight_options || []);
+    
+    // Get current product tags
+    const currentProductTags = getProductTags(product.id);
+    setEditSelectedProductTags(currentProductTags.map(tag => tag.id));
+    
     setIsEditProductOpen(true);
   };
 
@@ -340,6 +434,7 @@ export default function Admin() {
     }
 
     try {
+      // Update the product
       const { error } = await supabase
         .from('products')
         .update({
@@ -349,6 +444,7 @@ export default function Admin() {
           image: newProduct.image || null,
           category: newProduct.category || null,
           stock: parseInt(newProduct.stock) || 0,
+          info: newProduct.info || null,
           base_weight: parseFloat(newProduct.base_weight) || 500,
           weight_unit: newProduct.weight_unit || 'grams',
           weight_options: editWeightOptions.length > 0 ? JSON.stringify(editWeightOptions) : null
@@ -356,6 +452,29 @@ export default function Admin() {
         .eq('id', editingProduct.id);
 
       if (error) throw error;
+
+      // Update product tags
+      // First, delete existing product tags
+      const { error: deleteError } = await supabase
+        .from('product_tags')
+        .delete()
+        .eq('product_id', editingProduct.id);
+
+      if (deleteError) throw deleteError;
+
+      // Then, add new product tags if any are selected
+      if (editSelectedProductTags.length > 0) {
+        const productTagData = editSelectedProductTags.map(tagId => ({
+          product_id: editingProduct.id,
+          tag_id: tagId
+        }));
+
+        const { error: tagError } = await supabase
+          .from('product_tags')
+          .insert(productTagData);
+
+        if (tagError) throw tagError;
+      }
 
       toast({
         title: "Success",
@@ -369,13 +488,16 @@ export default function Admin() {
         image: "",
         category: "",
         stock: "",
+        info: "",
         base_weight: "500",
         weight_unit: "grams"
       });
       setEditWeightOptions([]);
+      setEditSelectedProductTags([]);
       setEditingProduct(null);
       setIsEditProductOpen(false);
       fetchProducts();
+      fetchProductTags();
     } catch (error) {
       toast({
         title: "Error",
@@ -769,6 +891,134 @@ export default function Admin() {
     }
   };
 
+  // Tag Management Functions
+  const handleAddTag = async () => {
+    if (!newTag.name.trim()) {
+      toast({
+        title: "Invalid Tag",
+        description: "Please enter a tag name.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('tags')
+        .insert([{
+          name: newTag.name.trim(),
+          color: newTag.color
+        }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Tag added successfully",
+      });
+
+      setNewTag({ name: "", color: "#3B82F6" });
+      setIsAddTagOpen(false);
+      fetchTags();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add tag",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditTag = (tag: Tag) => {
+    setEditingTag(tag);
+    setNewTag({
+      name: tag.name,
+      color: tag.color
+    });
+    setIsEditTagOpen(true);
+  };
+
+  const handleUpdateTag = async () => {
+    if (!editingTag || !newTag.name.trim()) {
+      toast({
+        title: "Invalid Tag",
+        description: "Please enter a tag name.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('tags')
+        .update({
+          name: newTag.name.trim(),
+          color: newTag.color
+        })
+        .eq('id', editingTag.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Tag updated successfully",
+      });
+
+      setNewTag({ name: "", color: "#3B82F6" });
+      setEditingTag(null);
+      setIsEditTagOpen(false);
+      fetchTags();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update tag",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    try {
+      // First delete all product associations
+      const { error: productTagsError } = await supabase
+        .from('product_tags')
+        .delete()
+        .eq('tag_id', tagId);
+
+      if (productTagsError) throw productTagsError;
+
+      // Then delete the tag
+      const { error } = await supabase
+        .from('tags')
+        .delete()
+        .eq('id', tagId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Tag deleted successfully",
+      });
+      fetchTags();
+      fetchProductTags();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete tag",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Helper function to get tags for a product
+  const getProductTags = (productId: string) => {
+    const productTagIds = productTags
+      .filter(pt => pt.product_id === productId)
+      .map(pt => pt.tag_id);
+    
+    return tags.filter(tag => productTagIds.includes(tag.id));
+  };
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate('/auth');
@@ -1111,10 +1361,11 @@ export default function Admin() {
 
         {/* Main Content */}
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsList className="grid w-full grid-cols-4 max-w-lg">
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="tags">Tags</TabsTrigger>
           </TabsList>
 
           {/* Products Tab */}
@@ -1222,6 +1473,50 @@ export default function Admin() {
                             placeholder="Enter product description"
                             rows={3}
                           />
+                        </div>
+                        
+                        <div className="col-span-2">
+                          <Label htmlFor="productInfo">Additional Information</Label>
+                          <Textarea
+                            id="productInfo"
+                            value={newProduct.info}
+                            onChange={(e) => setNewProduct(prev => ({ ...prev, info: e.target.value }))}
+                            placeholder="Enter additional information about the product"
+                            rows={2}
+                          />
+                        </div>
+                        
+                        <div className="col-span-2">
+                          <Label>Tags</Label>
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {tags.map((tag) => (
+                              <div key={tag.id} className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id={`tag-${tag.id}`}
+                                  checked={selectedProductTags.includes(tag.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedProductTags([...selectedProductTags, tag.id]);
+                                    } else {
+                                      setSelectedProductTags(selectedProductTags.filter(id => id !== tag.id));
+                                    }
+                                  }}
+                                  className="rounded"
+                                />
+                                <label 
+                                  htmlFor={`tag-${tag.id}`}
+                                  className="flex items-center space-x-1 text-sm cursor-pointer"
+                                >
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: tag.color }}
+                                  />
+                                  <span>{tag.name}</span>
+                                </label>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                         
                         {/* Image Upload */}
@@ -1359,6 +1654,7 @@ export default function Admin() {
                                   <TableHead>Product</TableHead>
                                   <TableHead>Price</TableHead>
                                   <TableHead>Weight Options</TableHead>
+                                  <TableHead>Tags</TableHead>
                                   <TableHead>Stock</TableHead>
                                   <TableHead>Actions</TableHead>
                                 </TableRow>
@@ -1388,6 +1684,24 @@ export default function Admin() {
                                             +{product.weight_options.length} options
                                           </p>
                                         )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex flex-wrap gap-1">
+                                        {getProductTags(product.id).map((tag) => (
+                                          <Badge 
+                                            key={tag.id} 
+                                            variant="outline" 
+                                            className="text-xs"
+                                            style={{ 
+                                              borderColor: tag.color, 
+                                              color: tag.color,
+                                              backgroundColor: `${tag.color}10`
+                                            }}
+                                          >
+                                            {tag.name}
+                                          </Badge>
+                                        ))}
                                       </div>
                                     </TableCell>
                                     <TableCell>
@@ -1651,6 +1965,130 @@ export default function Admin() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Tags Tab */}
+          <TabsContent value="tags">
+            <Card className="shadow-warm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Tag Management</CardTitle>
+                  <Dialog open={isAddTagOpen} onOpenChange={setIsAddTagOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Tag
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Add New Tag</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="tagName">Tag Name</Label>
+                          <Input
+                            id="tagName"
+                            value={newTag.name}
+                            onChange={(e) => setNewTag(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Enter tag name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="tagColor">Color</Label>
+                          <div className="flex items-center space-x-2">
+                            <Input
+                              id="tagColor"
+                              type="color"
+                              value={newTag.color}
+                              onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
+                              className="w-16 h-10"
+                            />
+                            <Input
+                              value={newTag.color}
+                              onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
+                              placeholder="#3B82F6"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                          <Button variant="outline" onClick={() => setIsAddTagOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleAddTag}>
+                            Add Tag
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tag</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead>Products</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tags.map((tag) => {
+                      const productCount = productTags.filter(pt => pt.tag_id === tag.id).length;
+                      return (
+                        <TableRow key={tag.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className="w-4 h-4 rounded-full" 
+                                style={{ backgroundColor: tag.color }}
+                              />
+                              <span className="font-medium">{tag.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className="w-6 h-6 rounded border" 
+                                style={{ backgroundColor: tag.color }}
+                              />
+                              <span className="text-sm font-mono">{tag.color}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {productCount} {productCount === 1 ? 'product' : 'products'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(tag.created_at)}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditTag(tag)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteTag(tag.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* Edit Product Dialog */}
@@ -1746,6 +2184,50 @@ export default function Admin() {
                   placeholder="Enter product description"
                   rows={3}
                 />
+              </div>
+
+              <div className="col-span-2">
+                <Label htmlFor="editProductInfo">Additional Information</Label>
+                <Textarea
+                  id="editProductInfo"
+                  value={newProduct.info}
+                  onChange={(e) => setNewProduct(prev => ({ ...prev, info: e.target.value }))}
+                  placeholder="Enter additional information about the product"
+                  rows={2}
+                />
+              </div>
+              
+              <div className="col-span-2">
+                <Label>Tags</Label>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {tags.map((tag) => (
+                    <div key={tag.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`edit-tag-${tag.id}`}
+                        checked={editSelectedProductTags.includes(tag.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditSelectedProductTags([...editSelectedProductTags, tag.id]);
+                          } else {
+                            setEditSelectedProductTags(editSelectedProductTags.filter(id => id !== tag.id));
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <label 
+                        htmlFor={`edit-tag-${tag.id}`}
+                        className="flex items-center space-x-1 text-sm cursor-pointer"
+                      >
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: tag.color }}
+                        />
+                        <span>{tag.name}</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="col-span-2">
@@ -2301,6 +2783,51 @@ export default function Admin() {
                 </Button>
                 <Button onClick={handleUpdateUser}>
                   Update User
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Tag Dialog */}
+        <Dialog open={isEditTagOpen} onOpenChange={setIsEditTagOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Tag</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="editTagName">Tag Name</Label>
+                <Input
+                  id="editTagName"
+                  value={newTag.name}
+                  onChange={(e) => setNewTag(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter tag name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editTagColor">Color</Label>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    id="editTagColor"
+                    type="color"
+                    value={newTag.color}
+                    onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
+                    className="w-16 h-10"
+                  />
+                  <Input
+                    value={newTag.color}
+                    onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
+                    placeholder="#3B82F6"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsEditTagOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateTag}>
+                  Update Tag
                 </Button>
               </div>
             </div>
