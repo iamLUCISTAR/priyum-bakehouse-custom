@@ -169,6 +169,7 @@ export type Database = {
           description: string | null
           id: string
           image: string | null
+          info: string | null
           name: string
           price: number
           stock: number | null
@@ -183,6 +184,7 @@ export type Database = {
           description?: string | null
           id?: string
           image?: string | null
+          info?: string | null
           name: string
           price: number
           stock?: number | null
@@ -197,6 +199,7 @@ export type Database = {
           description?: string | null
           id?: string
           image?: string | null
+          info?: string | null
           name?: string
           price?: number
           stock?: number | null
@@ -236,6 +239,66 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      product_tags: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_tags_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
