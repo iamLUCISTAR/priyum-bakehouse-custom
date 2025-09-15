@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,11 +22,13 @@ interface Product {
   description: string;
   image: string;
   category: string;
+  category_id?: string | null;
   stock: number;
   info?: string | null;
   weight_options?: Array<{weight: number; price: number; unit: string}> | null;
   base_weight?: number | null;
   weight_unit?: string | null;
+  site_display?: boolean;
 }
 
 interface Tag {
@@ -122,10 +125,12 @@ export default function Admin() {
     description: "",
     image: "",
     category: "",
+    category_id: "",
     stock: "",
     info: "",
     base_weight: "500",
-    weight_unit: "grams"
+    weight_unit: "grams",
+    site_display: true
   });
   
   const [newTag, setNewTag] = useState({
@@ -147,7 +152,9 @@ export default function Admin() {
     address: ""
   });
 
-  const categories = ["cookies", "brownies", "eggless brownies"];
+  const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState<{ name: string; display_name: string }>({ name: "", display_name: "" });
   const weightUnits = ["grams", "kg", "pieces"];
 
   const formatDate = (dateString: string) => {
@@ -165,6 +172,7 @@ export default function Admin() {
     fetchUsers();
     fetchTags();
     fetchProductTags();
+    fetchCategories();
     loadInvoiceSettings();
   }, []);
 
@@ -254,6 +262,23 @@ export default function Admin() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories' as any)
+        .select('id, name, display_name')
+        .order('display_name', { ascending: true });
+      if (error) throw error;
+      setCategories((data as any) || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch categories",
+        variant: "destructive",
+      });
+    }
+  };
+
   const fetchProductTags = async () => {
     try {
       const { data, error } = await supabase
@@ -327,7 +352,7 @@ export default function Admin() {
   };
 
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.category || !newProduct.price) {
+    if (!newProduct.name || !newProduct.price) {
       toast({
         title: "Invalid Product",
         description: "Please fill in all required fields with valid values.",
@@ -345,12 +370,15 @@ export default function Admin() {
           price: parseFloat(newProduct.price),
           description: newProduct.description || null,
           image: newProduct.image || null,
-          category: newProduct.category || null,
+          // keep legacy string for now based on selected category_id
+          category: newProduct.category_id ? (categories.find(c => c.id === newProduct.category_id)?.name || null) : (newProduct.category || null),
+          category_id: newProduct.category_id || null,
           stock: parseInt(newProduct.stock) || 0,
           info: newProduct.info || null,
           base_weight: parseFloat(newProduct.base_weight) || 500,
           weight_unit: newProduct.weight_unit || 'grams',
-          weight_options: weightOptions.length > 0 ? JSON.stringify(weightOptions) : null
+          weight_options: weightOptions.length > 0 ? JSON.stringify(weightOptions) : null,
+          site_display: newProduct.site_display
         }])
         .select()
         .single();
@@ -382,10 +410,12 @@ export default function Admin() {
         description: "",
         image: "",
         category: "",
+        category_id: "",
         stock: "",
         info: "",
         base_weight: "500",
-        weight_unit: "grams"
+        weight_unit: "grams",
+        site_display: true
       });
       setWeightOptions([]);
       setSelectedProductTags([]);
@@ -409,10 +439,12 @@ export default function Admin() {
       description: product.description || "",
       image: product.image || "",
       category: product.category || "",
+      category_id: product.category_id || "",
       stock: product.stock.toString(),
       info: product.info || "",
       base_weight: product.base_weight?.toString() || "500",
-      weight_unit: product.weight_unit || "grams"
+      weight_unit: product.weight_unit || "grams",
+      site_display: Boolean(product.site_display)
     });
     setEditWeightOptions(product.weight_options || []);
     
@@ -424,7 +456,7 @@ export default function Admin() {
   };
 
   const handleUpdateProduct = async () => {
-    if (!editingProduct || !newProduct.name || !newProduct.category || !newProduct.price) {
+    if (!editingProduct || !newProduct.name || !newProduct.price) {
       toast({
         title: "Invalid Product",
         description: "Please fill in all required fields with valid values.",
@@ -443,11 +475,13 @@ export default function Admin() {
           description: newProduct.description || null,
           image: newProduct.image || null,
           category: newProduct.category || null,
+          category_id: newProduct.category_id || null,
           stock: parseInt(newProduct.stock) || 0,
           info: newProduct.info || null,
           base_weight: parseFloat(newProduct.base_weight) || 500,
           weight_unit: newProduct.weight_unit || 'grams',
-          weight_options: editWeightOptions.length > 0 ? JSON.stringify(editWeightOptions) : null
+          weight_options: editWeightOptions.length > 0 ? JSON.stringify(editWeightOptions) : null,
+          site_display: newProduct.site_display
         })
         .eq('id', editingProduct.id);
 
@@ -487,10 +521,12 @@ export default function Admin() {
         description: "",
         image: "",
         category: "",
+        category_id: "",
         stock: "",
         info: "",
         base_weight: "500",
-        weight_unit: "grams"
+        weight_unit: "grams",
+        site_display: true
       });
       setEditWeightOptions([]);
       setEditSelectedProductTags([]);
@@ -1408,20 +1444,25 @@ export default function Admin() {
                         <div>
                           <Label htmlFor="productCategory">Category</Label>
                           <Select
-                            value={newProduct.category}
-                            onValueChange={(value) => setNewProduct(prev => ({ ...prev, category: value }))}
+                            value={newProduct.category_id}
+                            onValueChange={(value) => setNewProduct(prev => ({ ...prev, category_id: value }))}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select category" />
                             </SelectTrigger>
                             <SelectContent>
                               {categories.map(category => (
-                                <SelectItem key={category} value={category}>
-                                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                                <SelectItem key={category.id} value={category.id}>
+                                  {category.display_name}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          <div className="mt-2 text-right">
+                            <Button type="button" variant="outline" size="sm" onClick={() => setIsAddCategoryOpen(true)}>
+                              <Plus className="w-3 h-3 mr-1" /> Add Category
+                            </Button>
+                          </div>
                         </div>
                         <div>
                           <Label htmlFor="productStock">Stock Quantity</Label>
@@ -1475,6 +1516,17 @@ export default function Admin() {
                           />
                         </div>
                         
+                        <div className="col-span-2">
+                          <div className="flex items-center justify-between py-2">
+                            <Label htmlFor="siteDisplay">Show on Site</Label>
+                            <Switch
+                              id="siteDisplay"
+                              checked={newProduct.site_display}
+                              onCheckedChange={(checked) => setNewProduct(prev => ({ ...prev, site_display: checked }))}
+                            />
+                          </div>
+                        </div>
+
                         <div className="col-span-2">
                           <Label htmlFor="productInfo">Additional Information</Label>
                           <Textarea
@@ -1611,32 +1663,30 @@ export default function Admin() {
               </CardHeader>
               <CardContent>
                 {/* Category Tabs */}
-                <Tabs defaultValue={categories[0]} className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 mb-6">
-                    {categories.map((category) => (
-                      <TabsTrigger key={category} value={category} className="text-sm">
-                        {category.charAt(0).toUpperCase() + category.slice(1)}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  
-                  {categories.map((category) => (
-                    <TabsContent key={category} value={category}>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold">
-                            {category.charAt(0).toUpperCase() + category.slice(1)} Products
-                          </h3>
-                          <Badge variant="outline">
-                            {products.filter(p => p.category === category).length} products
-                          </Badge>
-                        </div>
-                        
-                        {(() => {
-                          const categoryProducts = products.filter(p => p.category === category);
-                          
-                          if (categoryProducts.length === 0) {
-                            return (
+                {categories.length > 0 && (
+                  <Tabs defaultValue={categories[0]?.name || ''} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 mb-6">
+                      {categories.map((category) => (
+                        <TabsTrigger key={category.id} value={category.name} className="text-sm">
+                          {category.display_name}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    
+                    {categories.map((category) => {
+                      const categoryProducts = products.filter(p => (p.category_id ? p.category_id === category.id : p.category === category.name));
+                      return (
+                        <TabsContent key={category.id} value={category.name}>
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-lg font-semibold">
+                                {category.display_name} Products
+                              </h3>
+                              <Badge variant="outline">
+                                {categoryProducts.length} products
+                              </Badge>
+                            </div>
+                            {categoryProducts.length === 0 ? (
                               <div className="text-center py-8">
                                 <div className="text-muted-foreground">
                                   <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1644,99 +1694,97 @@ export default function Admin() {
                                   <p className="text-sm">Add a new product to get started.</p>
                                 </div>
                               </div>
-                            );
-                          }
-                          
-                          return (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Product</TableHead>
-                                  <TableHead>Price</TableHead>
-                                  <TableHead>Weight Options</TableHead>
-                                  <TableHead>Tags</TableHead>
-                                  <TableHead>Stock</TableHead>
-                                  <TableHead>Actions</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {categoryProducts.map((product) => (
-                                  <TableRow key={product.id}>
-                                    <TableCell>
-                                      <div className="flex items-center space-x-3">
-                                        <img
-                                          src={product.image || "/placeholder.svg"}
-                                          alt={product.name}
-                                          className="w-12 h-12 object-cover rounded-lg"
-                                        />
-                                        <div>
-                                          <p className="font-medium">{product.name}</p>
-                                          <p className="text-sm text-muted-foreground">{product.description}</p>
-                                        </div>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>₹{product.price}</TableCell>
-                                    <TableCell>
-                                      <div className="text-sm">
-                                        <p>Base: {product.base_weight} {product.weight_unit}</p>
-                                        {product.weight_options && product.weight_options.length > 0 && (
-                                          <p className="text-muted-foreground">
-                                            +{product.weight_options.length} options
-                                          </p>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex flex-wrap gap-1">
-                                        {getProductTags(product.id).map((tag) => (
-                                          <Badge 
-                                            key={tag.id} 
-                                            variant="outline" 
-                                            className="text-xs"
-                                            style={{ 
-                                              borderColor: tag.color, 
-                                              color: tag.color,
-                                              backgroundColor: `${tag.color}10`
-                                            }}
-                                          >
-                                            {tag.name}
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge variant={product.stock > 10 ? "default" : "destructive"}>
-                                        {product.stock} units
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex space-x-2">
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm"
-                                          onClick={() => handleEditProduct(product)}
-                                        >
-                                          <Edit className="w-4 h-4" />
-                                        </Button>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => handleDeleteProduct(product.id)}
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                      </div>
-                                    </TableCell>
+                            ) : (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Product</TableHead>
+                                    <TableHead>Price</TableHead>
+                                    <TableHead>Weight Options</TableHead>
+                                    <TableHead>Tags</TableHead>
+                                    <TableHead>Stock</TableHead>
+                                    <TableHead>Actions</TableHead>
                                   </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          );
-                        })()}
-                      </div>
-                    </TabsContent>
-                  ))}
+                                </TableHeader>
+                                <TableBody>
+                                  {categoryProducts.map((product) => (
+                                    <TableRow key={product.id}>
+                                      <TableCell>
+                                        <div className="flex items-center space-x-3">
+                                          <img
+                                            src={product.image || "/placeholder.svg"}
+                                            alt={product.name}
+                                            className="w-12 h-12 object-cover rounded-lg"
+                                          />
+                                          <div>
+                                            <p className="font-medium">{product.name}</p>
+                                            <p className="text-sm text-muted-foreground">{product.description}</p>
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>₹{product.price}</TableCell>
+                                      <TableCell>
+                                        <div className="text-sm">
+                                          <p>Base: {product.base_weight} {product.weight_unit}</p>
+                                          {product.weight_options && product.weight_options.length > 0 && (
+                                            <p className="text-muted-foreground">
+                                              +{product.weight_options.length} options
+                                            </p>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="flex flex-wrap gap-1">
+                                          {getProductTags(product.id).map((tag) => (
+                                            <Badge 
+                                              key={tag.id} 
+                                              variant="outline" 
+                                              className="text-xs"
+                                              style={{ 
+                                                borderColor: tag.color, 
+                                                color: tag.color,
+                                                backgroundColor: `${tag.color}10`
+                                              }}
+                                            >
+                                              {tag.name}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant={product.stock > 10 ? "default" : "destructive"}>
+                                          {product.stock} units
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="flex space-x-2">
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => handleEditProduct(product)}
+                                          >
+                                            <Edit className="w-4 h-4" />
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleDeleteProduct(product.id)}
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            )}
+                          </div>
+                        </TabsContent>
+                      );
+                    })}
                 </Tabs>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -2120,20 +2168,25 @@ export default function Admin() {
               <div>
                 <Label htmlFor="editProductCategory">Category</Label>
                 <Select
-                  value={newProduct.category}
-                  onValueChange={(value) => setNewProduct(prev => ({ ...prev, category: value }))}
+                  value={newProduct.category_id}
+                  onValueChange={(value) => setNewProduct(prev => ({ ...prev, category_id: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map(category => (
-                      <SelectItem key={category} value={category}>
-                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.display_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <div className="mt-2 text-right">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIsAddCategoryOpen(true)}>
+                    <Plus className="w-3 h-3 mr-1" /> Add Category
+                  </Button>
+                </div>
               </div>
               <div>
                 <Label htmlFor="editProductStock">Stock Quantity</Label>
@@ -2173,6 +2226,17 @@ export default function Admin() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="col-span-2">
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="editSiteDisplay">Show on Site</Label>
+                  <Switch
+                    id="editSiteDisplay"
+                    checked={Boolean(newProduct.site_display)}
+                    onCheckedChange={(checked) => setNewProduct(prev => ({ ...prev, site_display: checked }))}
+                  />
+                </div>
               </div>
 
               <div className="col-span-2">
@@ -2328,6 +2392,149 @@ export default function Admin() {
                   Update Product
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="editUserEmail">Email (Read-only)</Label>
+                <Input
+                  id="editUserEmail"
+                  type="email"
+                  value={newUser.email}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editUserFullName">Full Name</Label>
+                <Input
+                  id="editUserFullName"
+                  value={newUser.full_name}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, full_name: e.target.value }))}
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editUserPhone">Phone</Label>
+                <Input
+                  id="editUserPhone"
+                  value={newUser.phone}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editUserAddress">Address</Label>
+                <Textarea
+                  id="editUserAddress"
+                  value={newUser.address}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="Enter address"
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateUser}>
+                  Update User
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Tag Dialog */}
+        <Dialog open={isEditTagOpen} onOpenChange={setIsEditTagOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Tag</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="editTagName">Tag Name</Label>
+                <Input
+                  id="editTagName"
+                  value={newTag.name}
+                  onChange={(e) => setNewTag(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter tag name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editTagColor">Color</Label>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    id="editTagColor"
+                    type="color"
+                    value={newTag.color}
+                    onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
+                    className="w-16 h-10"
+                  />
+                  <Input
+                    value={newTag.color}
+                    onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
+                    placeholder="#3B82F6"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsEditTagOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateTag}>
+                  Update Tag
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Category Dialog */}
+        <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Add Category</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-3 py-2">
+              <div>
+                <Label htmlFor="catName">System Name</Label>
+                <Input id="catName" value={newCategory.name} onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))} placeholder="e.g. brownies" />
+              </div>
+              <div>
+                <Label htmlFor="catDisplay">Display Name</Label>
+                <Input id="catDisplay" value={newCategory.display_name} onChange={(e) => setNewCategory(prev => ({ ...prev, display_name: e.target.value }))} placeholder="e.g. Brownies" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsAddCategoryOpen(false)}>Cancel</Button>
+              <Button onClick={async () => {
+                if (!newCategory.name || !newCategory.display_name) return;
+                const { data: cat, error } = await supabase
+                  .from('categories' as any)
+                  .insert({ name: newCategory.name, display_name: newCategory.display_name })
+                  .select('id, name, display_name')
+                  .single();
+                if (!error && cat) {
+                  // Auto-select newly created category for the product form
+                  const created = cat as any;
+                  setNewProduct(prev => ({ ...prev, category_id: created.id, category: created.name }));
+                  setIsAddCategoryOpen(false);
+                  setNewCategory({ name: '', display_name: '' });
+                  await fetchCategories();
+                  toast({ title: 'Category added' });
+                } else {
+                  toast({ title: 'Error', description: 'Failed to add category', variant: 'destructive' });
+                }
+              }}>Add</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -2729,108 +2936,6 @@ export default function Admin() {
                 </div>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit User Dialog */}
-        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit User</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="editUserEmail">Email (Read-only)</Label>
-                <Input
-                  id="editUserEmail"
-                  type="email"
-                  value={newUser.email}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div>
-                <Label htmlFor="editUserFullName">Full Name</Label>
-                <Input
-                  id="editUserFullName"
-                  value={newUser.full_name}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, full_name: e.target.value }))}
-                  placeholder="Enter full name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="editUserPhone">Phone</Label>
-                <Input
-                  id="editUserPhone"
-                  value={newUser.phone}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Enter phone number"
-                />
-              </div>
-              <div>
-                <Label htmlFor="editUserAddress">Address</Label>
-                <Textarea
-                  id="editUserAddress"
-                  value={newUser.address}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="Enter address"
-                  rows={3}
-                />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleUpdateUser}>
-                  Update User
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Tag Dialog */}
-        <Dialog open={isEditTagOpen} onOpenChange={setIsEditTagOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Tag</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="editTagName">Tag Name</Label>
-                <Input
-                  id="editTagName"
-                  value={newTag.name}
-                  onChange={(e) => setNewTag(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter tag name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="editTagColor">Color</Label>
-                <div className="flex items-center space-x-2">
-                  <Input
-                    id="editTagColor"
-                    type="color"
-                    value={newTag.color}
-                    onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
-                    className="w-16 h-10"
-                  />
-                  <Input
-                    value={newTag.color}
-                    onChange={(e) => setNewTag(prev => ({ ...prev, color: e.target.value }))}
-                    placeholder="#3B82F6"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setIsEditTagOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleUpdateTag}>
-                  Update Tag
-                </Button>
-              </div>
-            </div>
           </DialogContent>
         </Dialog>
       </div>
