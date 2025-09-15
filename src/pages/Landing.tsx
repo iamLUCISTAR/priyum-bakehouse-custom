@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { gsap } from "gsap";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,7 @@ const Landing = () => {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [contactInfo, setContactInfo] = useState<InvoiceSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isFiltering, setIsFiltering] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productTagsMap, setProductTagsMap] = useState<Record<string, Tag[]>>({});
   const [selectedProductTags, setSelectedProductTags] = useState<Tag[]>([]);
@@ -70,6 +72,60 @@ const Landing = () => {
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const { toast } = useToast();
+  const switchingCategoryRef = useRef(false);
+  const [previousCategory, setPreviousCategory] = useState("Cookies");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // GSAP-based loader animation (complex but easy to implement)
+  const loaderRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!loaderRef.current) return;
+    const tl = gsap.timeline({ repeat: -1, defaults: { ease: "power2.inOut" } });
+    const cookies = gsap.utils.toArray<HTMLElement>(".loader-cookie");
+    const chips = gsap.utils.toArray<HTMLElement>(".loader-chip");
+    
+    // Set initial states
+    gsap.set(cookies, { rotation: 0, scale: 1, y: 0 });
+    gsap.set(chips, { opacity: 0, scale: 0 });
+    
+    // Cookie rotation and bounce
+    tl.to(cookies, { 
+      rotation: 360, 
+      duration: 2, 
+      ease: "none",
+      stagger: 0.3 
+    })
+    .to(cookies, { 
+      y: -8, 
+      duration: 0.4, 
+      yoyo: true, 
+      repeat: 1, 
+      stagger: 0.2 
+    }, "<")
+    .to(cookies, { 
+      scale: 1.1, 
+      duration: 0.3, 
+      yoyo: true, 
+      repeat: 1, 
+      stagger: 0.1 
+    }, "<")
+    
+    // Chocolate chips appearing and disappearing
+    .to(chips, { 
+      opacity: 1, 
+      scale: 1, 
+      duration: 0.5, 
+      stagger: 0.2 
+    }, 0.5)
+    .to(chips, { 
+      opacity: 0, 
+      scale: 0, 
+      duration: 0.3, 
+      stagger: 0.1 
+    }, ">-0.5");
+    
+    return () => { tl.kill(); };
+  }, []);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSizeDialogOpen, setIsSizeDialogOpen] = useState(false);
@@ -113,12 +169,163 @@ const Landing = () => {
     filterAndSortProducts();
   }, [products, selectedCategory, searchQuery, filters]);
 
+  const handleCategoryChange = (category: string) => {
+    if (category === selectedCategory || isTransitioning) return;
+    
+    setIsTransitioning(true);
+    switchingCategoryRef.current = true;
+    
+    // Start the transition
+    setTimeout(() => {
+      setPreviousCategory(selectedCategory);
+      setSelectedCategory(category);
+      
+      // End the transition after content has updated
+      setTimeout(() => {
+        setIsTransitioning(false);
+        switchingCategoryRef.current = false;
+      }, 150);
+    }, 50);
+  };
+
+  const renderCategoryContent = (category: string) => {
+    const categoryProducts = groupedProducts[category] || [];
+    
+    // Don't show "Coming Soon" if we're currently filtering, switching category, or still loading
+    if (categoryProducts.length === 0 && !isFiltering && !loading && !switchingCategoryRef.current) {
+      return (
+        <div className="text-center py-16">
+          <div className="bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-2xl p-8 sm:p-12 max-w-lg mx-auto shadow-lg backdrop-blur-sm border border-amber-200/50">
+            <div className="text-6xl sm:text-8xl mb-6 animate-bounce">
+              {searchQuery ? "🔍" : "🔜"}
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-bold text-amber-800 mb-4">
+              {searchQuery ? "No Results Found" : "Coming Soon"}
+            </h3>
+            <p className="text-base sm:text-lg text-amber-700">
+              {searchQuery 
+                ? `No products found matching "${searchQuery}"`
+                : `Delicious ${category.toLowerCase()} are on their way!`
+              }
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+        {categoryProducts.map((product) => {
+          const ProductCard = (
+            <Card 
+              className="group overflow-hidden hover:shadow-xl transition-all duration-300 bg-amber-50/80 backdrop-blur-sm border-amber-200/50 hover:scale-105 cursor-pointer touch-manipulation"
+            >
+              {product.image && (
+                <div className="overflow-hidden relative">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-full h-auto object-contain group-hover:scale-110 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </div>
+              )}
+              <CardContent className="p-4 sm:p-6">
+                <h3 className="font-bold text-lg sm:text-xl mb-2 text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                  {product.name}
+                </h3>
+                {product.description && (
+                  <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
+                    {product.description}
+                  </p>
+                )}
+
+                {productTagsMap[product.id] && productTagsMap[product.id].length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {productTagsMap[product.id].map(tag => (
+                      <Badge
+                        key={tag.id}
+                        variant="outline"
+                        className="text-[10px]"
+                        style={{
+                          borderColor: tag.color,
+                          color: tag.color,
+                          backgroundColor: `${tag.color}10`
+                        }}
+                      >
+                        {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="secondary" className="text-base sm:text-lg font-bold px-3 py-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm">
+                      {formatPrice(product.price, product.base_weight || undefined, product.weight_unit || undefined)}
+                    </Badge>
+                    {product.weight_options && Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
+                      <Badge variant="outline" className="text-xs border-amber-300 text-amber-600 bg-amber-50">
+                        +{product.weight_options.length} sizes
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center justify-center text-xs text-amber-600">
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3" />
+                      <span>Fresh Daily</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                      className="w-full"
+                    >
+                      <ShoppingCart className="w-3 h-3 mr-2" /> Add to Cart
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+
+          // Use ProductQuickView for mobile, regular modal for desktop
+          return (
+            <div key={product.id}>
+              {/* Mobile: ProductQuickView */}
+              <div className="sm:hidden">
+                <ProductQuickView 
+                  product={product} 
+                  contactInfo={contactInfo} 
+                  prefetchedTags={productTagsMap[product.id]}
+                  onAddToCart={addToCart}
+                >
+                  {ProductCard}
+                </ProductQuickView>
+              </div>
+              
+              {/* Desktop: Regular modal */}
+              <div className="hidden sm:block" onClick={() => handleProductClick(product)}>
+                {ProductCard}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const loadData = async () => {
     try {
       // Load products
       const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select("*")
+        .eq('site_display', true)
         .order("category", { ascending: true });
 
       if (productsError) {
@@ -186,6 +393,8 @@ const Landing = () => {
   };
 
   const filterAndSortProducts = () => {
+    setIsFiltering(true);
+    
     let filtered = products.filter(product => {
       // Filter by category
       const normalizedCategory = product.category 
@@ -244,6 +453,8 @@ const Landing = () => {
     });
 
     setFilteredProducts(filtered);
+    setIsFiltering(false);
+    switchingCategoryRef.current = false;
   };
 
   const groupedProducts = filteredProducts.reduce((acc, product) => {
@@ -311,7 +522,12 @@ const Landing = () => {
   const confirmAddToCart = (product: Product, weight: number | null, unit: string | null, price: number) => {
     const variantKey = weight && unit ? `${weight}${unit}` : 'base';
     const id = `${product.id}-${variantKey}`;
-    const displayName = weight && unit ? `${product.name} (${weight}${unit})` : product.name || 'Product';
+    const categoryLower = (product.category || '').toLowerCase();
+    const isBrownie = categoryLower.includes('brownie');
+    const isEggless = categoryLower.includes('eggless');
+    const brownieTag = isBrownie ? (isEggless ? ' (Eggless)' : ' (Regular)') : '';
+    const baseName = product.name ? `${product.name}${brownieTag}` : 'Product';
+    const displayName = weight && unit ? `${baseName} (${weight}${unit})` : baseName;
     setCartItems(prev => {
       const existing = prev.find(ci => ci.id === id);
       if (existing) {
@@ -583,12 +799,38 @@ const Landing = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="relative">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-amber-200 border-t-amber-600 mx-auto"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-amber-400 animate-ping"></div>
+        <div className="text-center space-y-6">
+          <div ref={loaderRef} className="mx-auto w-48 h-44 relative flex items-center justify-center">
+            <div className="relative w-48 h-32">
+              {/* Cookie 1 */}
+              <div className="loader-cookie absolute top-4 left-8 w-12 h-12 bg-amber-200 rounded-full shadow-md">
+                <div className="absolute top-2 left-2 w-2 h-2 bg-amber-800 rounded-full" />
+                <div className="absolute top-6 right-3 w-1.5 h-1.5 bg-amber-800 rounded-full" />
+                <div className="absolute bottom-3 left-4 w-1.5 h-1.5 bg-amber-800 rounded-full" />
+                <div className="absolute bottom-2 right-2 w-2 h-2 bg-amber-800 rounded-full" />
+              </div>
+              {/* Cookie 2 */}
+              <div className="loader-cookie absolute top-8 right-8 w-10 h-10 bg-amber-300 rounded-full shadow-md">
+                <div className="absolute top-1 left-1 w-1.5 h-1.5 bg-amber-800 rounded-full" />
+                <div className="absolute top-4 right-2 w-1 h-1 bg-amber-800 rounded-full" />
+                <div className="absolute bottom-2 left-3 w-1.5 h-1.5 bg-amber-800 rounded-full" />
+              </div>
+              {/* Cookie 3 */}
+              <div className="loader-cookie absolute bottom-4 left-1/2 -translate-x-1/2 w-14 h-14 bg-amber-100 rounded-full shadow-md">
+                <div className="absolute top-3 left-3 w-2 h-2 bg-amber-800 rounded-full" />
+                <div className="absolute top-6 right-4 w-1.5 h-1.5 bg-amber-800 rounded-full" />
+                <div className="absolute bottom-4 left-5 w-1.5 h-1.5 bg-amber-800 rounded-full" />
+                <div className="absolute bottom-3 right-3 w-2 h-2 bg-amber-800 rounded-full" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-amber-800 rounded-full" />
+              </div>
+              {/* Floating chocolate chips */}
+              <div className="loader-chip absolute top-2 left-4 w-1 h-1 bg-amber-800 rounded-full" />
+              <div className="loader-chip absolute top-6 right-6 w-1 h-1 bg-amber-800 rounded-full" />
+              <div className="loader-chip absolute bottom-2 left-6 w-1 h-1 bg-amber-800 rounded-full" />
+            </div>
           </div>
-          <p className="text-muted-foreground text-lg">Loading delicious treats...</p>
+          <p className="text-amber-800 text-lg font-semibold">Whipping up something sweet...</p>
+          <p className="text-muted-foreground text-sm">Hang tight while we preheat the oven</p>
         </div>
       </div>
     );
@@ -633,7 +875,7 @@ const Landing = () => {
                           <button
                             key={category}
                             onClick={() => {
-                              setSelectedCategory(category);
+                              handleCategoryChange(category);
                               setIsMobileMenuOpen(false);
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
@@ -723,7 +965,7 @@ const Landing = () => {
         <div className="scrolling-banner-wrapper">
           <div className="scrolling-banner-track">
             <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us.
+              🎉 Flat 10% off on your first order with us (min order ₹499).
             </div>
             <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
@@ -735,7 +977,7 @@ const Landing = () => {
             </div>
             <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us.
+              🎉 Flat 10% off on your first order with us (min order ₹499).
             </div>
             <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
@@ -760,82 +1002,90 @@ const Landing = () => {
 
         {/* Cart Sheet */}
         <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
-          <DialogContent className="w-[92vw] max-w-2xl p-4 sm:p-6">
-            <DialogHeader>
+          <DialogContent className="w-[92vw] max-w-2xl h-[80vh] max-h-[600px] p-0 flex flex-col">
+            <DialogHeader className="p-4 sm:p-6 pb-0 flex-shrink-0">
               <DialogTitle>Your Cart</DialogTitle>
             </DialogHeader>
-            <div className="space-y-3">
-              {cartItems.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">Your cart is empty</div>
-              ) : (
-                cartItems.map(item => (
-                  <div key={item.id} className="p-3 border rounded-lg">
-                    {/* Mobile layout */}
-                    <div className="flex flex-col gap-3 sm:hidden">
-                      <div className="flex items-center gap-3">
-                        {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
-                        ) : (
-                          <div className="w-12 h-12 bg-amber-100 rounded" />
-                        )}
-                        <div className="min-w-0 flex-1">
+            
+            {/* Scrollable cart items area */}
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              <div className="space-y-3">
+                {cartItems.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8">Your cart is empty</div>
+                ) : (
+                  cartItems.map(item => (
+                    <div key={item.id} className="p-3 border rounded-lg">
+                      {/* Mobile layout */}
+                      <div className="flex flex-col gap-3 sm:hidden">
+                        <div className="flex items-center gap-3">
+                          {item.image ? (
+                            <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
+                          ) : (
+                            <div className="w-12 h-12 bg-amber-100 rounded" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium truncate">{item.name}</div>
+                            <div className="text-sm text-muted-foreground">₹{item.price} each</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity - 1)}>-</Button>
+                            <div className="w-6 text-center text-sm">{item.quantity}</div>
+                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity + 1)}>+</Button>
+                          </div>
+                          <div className="font-medium">₹{item.price * item.quantity}</div>
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => removeFromCart(item.id)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Desktop layout */}
+                      <div className="hidden sm:grid sm:grid-cols-[48px,1fr,auto,auto,auto] sm:items-center sm:gap-4">
+                        <div className="flex items-center justify-center">
+                          {item.image ? (
+                            <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
+                          ) : (
+                            <div className="w-12 h-12 bg-amber-100 rounded" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
                           <div className="font-medium truncate">{item.name}</div>
                           <div className="text-sm text-muted-foreground">₹{item.price} each</div>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 justify-center">
                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity - 1)}>-</Button>
                           <div className="w-6 text-center text-sm">{item.quantity}</div>
                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity + 1)}>+</Button>
                         </div>
-                        <div className="font-medium">₹{item.price * item.quantity}</div>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => removeFromCart(item.id)}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                        <div className="font-medium text-right">₹{item.price * item.quantity}</div>
+                        <div className="flex justify-end">
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => removeFromCart(item.id)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Desktop layout */}
-                    <div className="hidden sm:grid sm:grid-cols-[48px,1fr,auto,auto,auto] sm:items-center sm:gap-4">
-                      <div className="flex items-center justify-center">
-                        {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
-                        ) : (
-                          <div className="w-12 h-12 bg-amber-100 rounded" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{item.name}</div>
-                        <div className="text-sm text-muted-foreground">₹{item.price} each</div>
-                      </div>
-                      <div className="flex items-center gap-2 justify-center">
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity - 1)}>-</Button>
-                        <div className="w-6 text-center text-sm">{item.quantity}</div>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateCartQuantity(item.id, item.quantity + 1)}>+</Button>
-                      </div>
-                      <div className="font-medium text-right">₹{item.price * item.quantity}</div>
-                      <div className="flex justify-end">
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => removeFromCart(item.id)}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
-            {/* Subtotal note */}
-            {cartItems.length > 0 && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                *The subtotal does not including shipping charges and discounts. The final total will be on your invoice after checkout!
-              </p>
-            )}
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-lg font-bold">Subtotal: ₹{cartSubtotal}</div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button variant="outline" className="flex-1 sm:flex-none" onClick={clearCart}>Clear</Button>
-                <Button className="flex-1 sm:flex-none" onClick={openCheckoutForm}>Checkout</Button>
+            
+            {/* Fixed footer with subtotal and buttons */}
+            <div className="flex-shrink-0 border-t bg-background p-4 sm:p-6">
+              {/* Subtotal note */}
+              {cartItems.length > 0 && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  *The subtotal does not including shipping charges and discounts. The final total will be on your invoice after checkout!
+                </p>
+              )}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-lg font-bold">Subtotal: ₹{cartSubtotal}</div>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button variant="outline" className="flex-1 sm:flex-none" onClick={clearCart}>Clear</Button>
+                  <Button className="flex-1 sm:flex-none" onClick={openCheckoutForm}>Checkout</Button>
+                </div>
               </div>
             </div>
           </DialogContent>
@@ -892,7 +1142,7 @@ const Landing = () => {
             {categories.map((category) => (
               <button
                 key={category}
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => handleCategoryChange(category)}
                 className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all duration-200 ${
                   selectedCategory === category
                     ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg'
@@ -907,7 +1157,7 @@ const Landing = () => {
 
         {/* Desktop Tabs */}
         <div className="hidden sm:block">
-          <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
+          <Tabs value={selectedCategory} onValueChange={handleCategoryChange} className="w-full">
             <TabsList className="flex w-full justify-center mb-8 bg-amber-100/70 backdrop-blur-sm p-2 rounded-xl shadow-sm gap-2">
             {categories.map((category) => (
               <TabsTrigger 
@@ -922,136 +1172,20 @@ const Landing = () => {
           </Tabs>
         </div>
         
-        {/* Product Grid */}
-        {(() => {
-          const categoryProducts = groupedProducts[selectedCategory] || [];
-          
-          if (categoryProducts.length === 0) {
-            return (
-                  <div className="text-center py-16">
-                <div className="bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-2xl p-8 sm:p-12 max-w-lg mx-auto shadow-lg backdrop-blur-sm border border-amber-200/50">
-                  <div className="text-6xl sm:text-8xl mb-6 animate-bounce">
-                    {searchQuery ? "🔍" : "🔜"}
-                  </div>
-                  <h3 className="text-2xl sm:text-3xl font-bold text-amber-800 mb-4">
-                    {searchQuery ? "No Results Found" : "Coming Soon"}
-                  </h3>
-                  <p className="text-base sm:text-lg text-amber-700">
-                    {searchQuery 
-                      ? `No products found matching "${searchQuery}"`
-                      : `Delicious ${selectedCategory.toLowerCase()} are on their way!`
-                    }
-                      </p>
-                    </div>
-                  </div>
-            );
-          }
-
-          return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-              {categoryProducts.map((product) => {
-                const ProductCard = (
-                      <Card 
-                    className="group overflow-hidden hover:shadow-xl transition-all duration-300 bg-amber-50/80 backdrop-blur-sm border-amber-200/50 hover:scale-105 cursor-pointer touch-manipulation"
-                      >
-                        {product.image && (
-                      <div className="overflow-hidden relative">
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                          className="w-full h-auto object-contain group-hover:scale-110 transition-transform duration-300"
-                          loading="lazy"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          </div>
-                        )}
-                    <CardContent className="p-4 sm:p-6">
-                      <h3 className="font-bold text-lg sm:text-xl mb-2 text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                            {product.name}
-                          </h3>
-                          {product.description && (
-                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
-                              {product.description}
-                            </p>
-                          )}
-
-                          {productTagsMap[product.id] && productTagsMap[product.id].length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {productTagsMap[product.id].map(tag => (
-                                <Badge
-                                  key={tag.id}
-                                  variant="outline"
-                                  className="text-[10px]"
-                                  style={{
-                                    borderColor: tag.color,
-                                    color: tag.color,
-                                    backgroundColor: `${tag.color}10`
-                                  }}
-                                >
-                                  {tag.name}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          
-                          <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="text-base sm:text-lg font-bold px-3 py-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm">
-                                {formatPrice(product.price, product.base_weight || undefined, product.weight_unit || undefined)}
-                              </Badge>
-                              {product.weight_options && Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
-                            <Badge variant="outline" className="text-xs border-amber-300 text-amber-600 bg-amber-50">
-                              +{product.weight_options.length} sizes
-                            </Badge>
-                              )}
-                            </div>
-                            
-                        <div className="flex items-center justify-center text-xs text-amber-600">
-                          <div className="flex items-center space-x-1">
-                            <Clock className="h-3 w-3" />
-                            <span>Fresh Daily</span>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                            className="w-full"
-                          >
-                            <ShoppingCart className="w-3 h-3 mr-2" /> Add to Cart
-                          </Button>
-                        </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                );
-
-                // Use ProductQuickView for mobile, regular modal for desktop
-                return (
-                  <div key={product.id}>
-                    {/* Mobile: ProductQuickView */}
-                    <div className="sm:hidden">
-                      <ProductQuickView 
-                        product={product} 
-                        contactInfo={contactInfo} 
-                        prefetchedTags={productTagsMap[product.id]}
-                        onAddToCart={addToCart}
-                      >
-                        {ProductCard}
-                      </ProductQuickView>
-                    </div>
-                    
-                    {/* Desktop: Regular modal */}
-                    <div className="hidden sm:block" onClick={() => handleProductClick(product)}>
-                      {ProductCard}
-                    </div>
-                  </div>
-            );
-          })}
+        {/* Product Grid with Crossfade */}
+        <div className="relative min-h-[400px]">
+          {/* Previous content (fading out) */}
+          {isTransitioning && (
+            <div className="absolute inset-0 opacity-0 transition-opacity duration-200 ease-in-out">
+              {renderCategoryContent(previousCategory)}
             </div>
-          );
-        })()}
+          )}
+          
+          {/* Current content (fading in) */}
+          <div className={`transition-opacity duration-200 ease-in-out ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+            {renderCategoryContent(selectedCategory)}
+          </div>
+        </div>
 
         {/* Product Detail Modal - Desktop Only */}
         <Dialog open={isProductModalOpen} onOpenChange={setIsProductModalOpen}>
