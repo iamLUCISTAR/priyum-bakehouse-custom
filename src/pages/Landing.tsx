@@ -11,14 +11,28 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Phone, Mail, Instagram, Heart, X, Menu, Star, ShoppingBag, Clock, MapPin, Tag, ShoppingCart, Trash2 } from "lucide-react";
 import ProductQuickView from "@/components/ProductQuickView";
 import MobileSearchFilter from "@/components/MobileSearchFilter";
-import type { Database } from "@/integrations/supabase/types";
+// import type { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 // Removed custom calendar popover; using native date input
 
-type Product = Database["public"]["Tables"]["products"]["Row"];
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  description: string | null;
+  image: string | null;
+  category: string | null;
+  base_weight: number | null;
+  weight_unit: string | null;
+  weight_options: any;
+  info: string | null;
+  stock: number | null;
+  created_at: string;
+  updated_at: string;
+};
 
 interface Tag {
   id: string;
@@ -322,16 +336,19 @@ const Landing = () => {
   const loadData = async () => {
     try {
       // Load products
-      const { data: productsData, error: productsError } = await supabase
+      const result: any = await (supabase as any)
         .from("products")
         .select("*")
         .eq('site_display', true)
         .order("category", { ascending: true });
+      
+      const productsData = result.data;
+      const productsError = result.error;
 
       if (productsError) {
         console.error("Error loading products:", productsError);
       } else if (productsData) {
-        setProducts(productsData);
+        setProducts(productsData as Product[]);
         // After products load, fetch tags for these products
         try {
           const productIds = productsData.map(p => p.id);

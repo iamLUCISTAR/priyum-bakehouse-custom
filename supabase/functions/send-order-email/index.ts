@@ -84,25 +84,25 @@ const generatePDF = (orderData: OrderEmailRequest): Uint8Array => {
   orderData.orderItems.forEach((item) => {
     doc.text(item.product_name, 20, yPosition);
     doc.text(item.quantity.toString(), 120, yPosition);
-    doc.text(`$${item.product_price.toFixed(2)}`, 140, yPosition);
-    doc.text(`$${item.total.toFixed(2)}`, 170, yPosition);
+    doc.text(`₹${item.product_price.toFixed(2)}`, 140, yPosition);
+    doc.text(`₹${item.total.toFixed(2)}`, 170, yPosition);
     yPosition += 10;
   });
 
   // Totals
   yPosition += 10;
-  doc.text(`Subtotal: $${orderData.subtotal.toFixed(2)}`, 120, yPosition);
+  doc.text(`Subtotal: ₹${orderData.subtotal.toFixed(2)}`, 120, yPosition);
   yPosition += 10;
   if (orderData.shippingCharges > 0) {
-    doc.text(`Shipping: $${orderData.shippingCharges.toFixed(2)}`, 120, yPosition);
+    doc.text(`Shipping: ₹${orderData.shippingCharges.toFixed(2)}`, 120, yPosition);
     yPosition += 10;
   }
   if (orderData.discountAmount > 0) {
-    doc.text(`Discount: -$${orderData.discountAmount.toFixed(2)}`, 120, yPosition);
+    doc.text(`Discount: -₹${orderData.discountAmount.toFixed(2)}`, 120, yPosition);
     yPosition += 10;
   }
   doc.setFontSize(12);
-  doc.text(`Total: $${orderData.total.toFixed(2)}`, 120, yPosition);
+  doc.text(`Total: ₹${orderData.total.toFixed(2)}`, 120, yPosition);
 
   return doc.output('arraybuffer');
 };
@@ -131,10 +131,10 @@ const handler = async (req: Request): Promise<Response> => {
         <h3>Order Details:</h3>
         <ul>
           ${orderData.orderItems.map(item => 
-            `<li>${item.product_name} - Qty: ${item.quantity} - $${item.total.toFixed(2)}</li>`
+            `<li>${item.product_name} - Qty: ${item.quantity} - ₹${item.total.toFixed(2)}</li>`
           ).join('')}
         </ul>
-        <p><strong>Total: $${orderData.total.toFixed(2)}</strong></p>
+        <p><strong>Total: ₹${orderData.total.toFixed(2)}</strong></p>
         <p>Please find your invoice attached.</p>
         <p>Best regards,<br>Your Business Team</p>
       `,
