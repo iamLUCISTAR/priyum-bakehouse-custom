@@ -28,6 +28,7 @@ interface CartItem {
   price: number;
   quantity: number;
   image: string;
+  category?: string;
   selectedWeight?: number;
   selectedUnit?: string;
   weight?: number;
@@ -145,14 +146,13 @@ const Index = () => {
   const [selectedWeight, setSelectedWeight] = useState<WeightOption | null>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [discount, setDiscount] = useState<number>(0);
-
-  // Define categories
-  const categories = ["cookies", "brownies", "eggless brownies"];
+  const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
 
   useEffect(() => {
     checkAuth();
     loadProducts();
     loadInvoiceSettings();
+    fetchCategories();
   }, []);
 
   const loadInvoiceSettings = async () => {
@@ -281,6 +281,26 @@ const Index = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories' as any)
+        .select('id, name, display_name')
+        .order('display_name', { ascending: true });
+      
+      if (error) throw error;
+      setCategories((data as any) || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      // Fallback to hardcoded categories if database fetch fails
+      setCategories([
+        { id: '1', name: 'cookies', display_name: 'Cookies' },
+        { id: '2', name: 'brownies', display_name: 'Brownies' },
+        { id: '3', name: 'eggless brownies', display_name: 'Eggless Brownies' }
+      ]);
+    }
+  };
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate('/auth');
@@ -347,6 +367,7 @@ const Index = () => {
         price,
         quantity: 1,
         image: product.image,
+        category: product.category,
         selectedWeight: weight,
         selectedUnit: unit,
         weight: weight,
@@ -520,105 +541,134 @@ const Index = () => {
         // Don't fail the order if email fails
       }
 
-      // Dynamic import for jsPDF and generate text-based PDF (copy-pastable)
+      // Dynamic import for jsPDF and html2canvas (same as Admin page)
       const { default: jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
+      
+      // Create a temporary HTML element for PDF generation (same design as Admin page)
+      const invoiceHtml = document.createElement('div');
+      invoiceHtml.innerHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; background: white; width: 600px;">
+          <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #d4a574; padding-bottom: 15px;">
+            <div style="color: #8b4513; font-size: 24px; font-weight: bold; margin-bottom: 5px;">${invoiceSettings.businessName}</div>
+            <div style="color: #d4a574; font-size: 12px;">${invoiceSettings.businessSubtitle}</div>
+            <div style="margin-top: 8px; color: #666; font-size: 10px;">
+              📞 ${invoiceSettings.phone} | 📧 ${invoiceSettings.email}
+            </div>
+            <div style="margin-top: 8px; font-size: 12px;">Invoice #INV-${order.id.slice(0, 8)}</div>
+            <div style="font-size: 10px; color: #666;">Order ID: ${order.id}</div>
+            <div style="font-size: 10px; color: #666;">Invoice Date: ${customerDetails.invoiceDate}</div>
+            <div style="font-size: 10px; color: #666;">Order Date: ${customerDetails.orderDate}</div>
+          </div>
+          
+          <div style="margin: 15px 0; padding: 10px; background: #f9f7f4; border-radius: 5px;">
+            <h3 style="color: #8b4513; margin-bottom: 8px; font-size: 14px;">Customer Details:</h3>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Name:</strong> ${customerDetails.name}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Phone:</strong> ${customerDetails.phone}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Address:</strong> ${customerDetails.address}</p>
+            <p style="margin: 3px 0; font-size: 11px;"><strong>Delivery Date:</strong> ${customerDetails.deliveryDate || 'N/A'}</p>
+            ${customerDetails.notes ? `<p style="margin: 3px 0; font-size: 11px;"><strong>Notes:</strong> ${customerDetails.notes}</p>` : ''}
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10px;">
+            <thead>
+              <tr style="background: #d4a574; color: white;">
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Item</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Weight</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Qty</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Price</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${cartItems.map(item => {
+                // Format category name for display
+                const categoryDisplay = item.category ? 
+                  item.category.split(' ').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                  ).join(' ') : '';
+                
+                // Create product name with category
+                const productNameWithCategory = categoryDisplay ? 
+                  `${item.name} (${categoryDisplay})` : 
+                  item.name;
+                
+                return `
+                <tr>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${productNameWithCategory}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${item.selectedWeight && item.selectedUnit ? `${item.selectedWeight} ${item.selectedUnit}` : 'N/A'}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">${item.quantity}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">₹${roundPrice(item.price)}</td>
+                  <td style="padding: 6px; border-bottom: 1px solid #ddd;">₹${roundPrice(item.price * item.quantity)}</td>
+                </tr>
+              `;
+              }).join('')}
+            </tbody>
+          </table>
+          
+          <div style="margin-top: 20px; text-align: right;">
+            <div style="margin: 3px 0; font-size: 11px;">
+              <span>Subtotal: ₹${roundPrice(subtotal)}</span>
+            </div>
+            <div style="margin: 3px 0; font-size: 11px;">
+              <span>Shipping: ₹${roundPrice(shippingCharge)}</span>
+            </div>
+            ${discount > 0 ? `
+              <div style="margin: 3px 0; font-size: 11px;">
+                <span>Discount (${discount}%): -₹${roundPrice(discountAmount)}</span>
+              </div>
+            ` : ''}
+            <div style="font-size: 14px; font-weight: bold; color: #8b4513; border-top: 2px solid #d4a574; padding-top: 8px; margin-top: 8px;">
+              Total Amount: ₹${roundPrice(total)}
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 20px; color: #666; font-size: 10px;">
+            <p>Thank you for choosing PRIYUM Cakes & Bakes!</p>
+            <p>Order Date: ${customerDetails.orderDate}</p>
+            <p>Made with ❤️ for delicious moments</p>
+          </div>
+        </div>
+      `;
 
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const marginLeft = 15;
-      let y = 20;
+      // Temporarily add to DOM for rendering
+      invoiceHtml.style.position = 'absolute';
+      invoiceHtml.style.left = '-9999px';
+      document.body.appendChild(invoiceHtml);
 
-      // Header
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(18);
-      pdf.text(invoiceSettings.businessName || 'PRIYUM Cakes & Bakes', marginLeft, y);
-      y += 6;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.text(invoiceSettings.businessSubtitle || 'Cakes & Bakes', marginLeft, y);
-      y += 6;
-      pdf.text(`Phone: ${invoiceSettings.phone}`, marginLeft, y);
-      y += 5;
-      pdf.text(`Email: ${invoiceSettings.email}`, marginLeft, y);
-      y += 8;
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(12);
-      pdf.text(`Invoice #INV-${order.id.slice(0, 8)}`, marginLeft, y);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.text(`Order ID: ${order.id}`, marginLeft + 80, y);
-      y += 6;
-      pdf.text(`Invoice Date: ${customerDetails.invoiceDate}`, marginLeft, y);
-      pdf.text(`Order Date: ${customerDetails.orderDate}`, marginLeft + 80, y);
-      y += 10;
-
-      // Customer details
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Customer Details', marginLeft, y);
-      pdf.setFont('helvetica', 'normal');
-      y += 6;
-      const customerLines = [
-        `Name: ${customerDetails.name}`,
-        `Phone: ${customerDetails.phone}`,
-        `Address: ${customerDetails.address}`,
-        `Delivery Date: ${customerDetails.deliveryDate || '-'}`,
-      ];
-      customerLines.forEach(line => { pdf.text(line, marginLeft, y); y += 5; });
-      if (customerDetails.notes) { pdf.text(`Notes: ${customerDetails.notes}`, marginLeft, y); y += 5; }
-      y += 5;
-
-      // Items table header
-      const colX = { item: marginLeft, qty: 140, price: 160, total: 185 };
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Item', colX.item, y);
-      pdf.text('Qty', colX.qty, y);
-      pdf.text('Price', colX.price, y);
-      pdf.text('Total', colX.total, y);
-      pdf.setFont('helvetica', 'normal');
-      y += 3;
-      pdf.line(marginLeft, y, 195, y);
-      y += 6;
-
-      const addPageIfNeeded = () => {
-        if (y > 270) {
-          pdf.addPage();
-          y = 20;
-        }
-      };
-
-      // Items rows
-      cartItems.forEach(item => {
-        addPageIfNeeded();
-        const lineTotal = roundPrice(item.price * item.quantity);
-        // Wrap long item names
-        const maxWidth = colX.qty - colX.item - 2;
-        const lines = pdf.splitTextToSize(item.name, maxWidth);
-        lines.forEach((ln, idx) => {
-          pdf.text(ln, colX.item, y + idx * 5);
-        });
-        pdf.text(String(item.quantity), colX.qty, y);
-        pdf.text(`₹${item.price}`, colX.price, y);
-        pdf.text(`₹${lineTotal}`, colX.total, y);
-        y += Math.max(6, lines.length * 5 + 1);
+      // Convert to canvas then PDF with optimized settings for smaller file size
+      const canvas = await html2canvas(invoiceHtml, {
+        scale: 1.5, // Reduced from 2 to 1.5 for smaller file size
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        imageTimeout: 0,
+        logging: false,
+        removeContainer: true
       });
 
-      y += 4;
-      pdf.line(120, y, 195, y);
-      y += 6;
-      pdf.text(`Subtotal: ₹${roundPrice(subtotal)}`, 120, y);
-      y += 6;
-      pdf.text(`Shipping: ₹${roundPrice(shippingCharge)}`, 120, y);
-      if (discount > 0) {
-        y += 6;
-        pdf.text(`Discount (${discount}%): -₹${roundPrice(discountAmount)}`, 120, y);
-      }
-      y += 8;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(`Total Amount: ₹${roundPrice(total)}`, 120, y);
-      pdf.setFont('helvetica', 'normal');
-      y += 14;
+      const imgData = canvas.toDataURL('image/jpeg', 0.8); // Use JPEG with 80% quality instead of PNG
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 190; // Reduced from 210 to 190 for better fit
+      const pageHeight = 277; // Reduced from 295 to 277 for better fit
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
 
-      pdf.setFontSize(9);
-      pdf.text('Thank you for choosing PRIYUM Cakes & Bakes! Made with ❤️', marginLeft, y);
+      pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight); // Added 10px margin
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Clean up
+      if (invoiceHtml.parentNode) {
+        invoiceHtml.parentNode.removeChild(invoiceHtml);
+      }
 
       // Download PDF with customer name and order ID in filename
       const safeCustomerName = customerDetails.name.replace(/[^a-zA-Z0-9]/g, '-');
@@ -771,29 +821,29 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 {/* Category Tabs */}
-                <Tabs defaultValue={categories[0]} className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 mb-4">
+                <Tabs defaultValue={categories[0]?.name || "cookies"} className="w-full">
+                  <TabsList className="grid w-full mb-4" style={{ gridTemplateColumns: `repeat(${Math.min(categories.length, 4)}, 1fr)` }}>
                     {categories.map((category) => (
-                      <TabsTrigger key={category} value={category} className="text-xs">
-                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                      <TabsTrigger key={category.id} value={category.name} className="text-xs">
+                        {category.display_name}
                       </TabsTrigger>
                     ))}
                   </TabsList>
                   
                   {categories.map((category) => (
-                    <TabsContent key={category} value={category}>
+                    <TabsContent key={category.id} value={category.name}>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-semibold">
-                            {category.charAt(0).toUpperCase() + category.slice(1)}
+                            {category.display_name}
                           </h4>
                           <Badge variant="outline" className="text-xs">
-                            {products.filter(p => p.category === category).length} products
+                            {products.filter(p => p.category === category.name).length} products
                           </Badge>
                         </div>
                         
                         {(() => {
-                          const categoryProducts = products.filter(p => p.category === category);
+                          const categoryProducts = products.filter(p => p.category === category.name);
                           
                           if (categoryProducts.length === 0) {
                             return (
@@ -1057,7 +1107,7 @@ const Index = () => {
                   disabled={isGeneratingPDF || cartItems.length === 0}
                   className="w-full shadow-golden"
                   size="lg"
-                  variant="hero"
+                  variant="default"
                 >
                   <Receipt className="w-4 h-4 mr-2" />
                   {isGeneratingPDF ? "Generating Invoice..." : "Generate & Download PDF Invoice"}
