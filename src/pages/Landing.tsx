@@ -21,7 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 type Product = {
   id: string;
   name: string;
-  price: number;
+  mrp: number;
+  selling_price: number;
   description: string | null;
   image: string | null;
   category: string | null;
@@ -76,6 +77,7 @@ const Landing = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("Cookies");
   const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
   const [filters, setFilters] = useState<FilterOptions>({
     priceRange: "all",
     sortBy: "name",
@@ -181,7 +183,14 @@ const Landing = () => {
 
   useEffect(() => {
     filterAndSortProducts();
-  }, [products, selectedCategory, searchQuery, filters]);
+  }, [products, selectedCategory, searchQuery, filters, categories]);
+
+  // Set initial category when categories are loaded
+  useEffect(() => {
+    if (categories.length > 0 && selectedCategory === "Cookies") {
+      setSelectedCategory(categories[0].display_name);
+    }
+  }, [categories]);
 
   const handleCategoryChange = (category: string) => {
     if (category === selectedCategory || isTransitioning) return;
@@ -276,9 +285,23 @@ const Landing = () => {
                 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="text-base sm:text-lg font-bold px-3 py-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm">
-                      {formatPrice(product.price, product.base_weight || undefined, product.weight_unit || undefined)}
-                    </Badge>
+                    <div className="flex flex-col items-start">
+                      <div className="flex flex-col items-start">
+                        <Badge variant="secondary" className="text-base sm:text-lg font-bold px-3 py-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm mb-1">
+                          {formatPrice(product.selling_price, product.base_weight || undefined, product.weight_unit || undefined)}
+                        </Badge>
+                        {product.mrp > product.selling_price && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">
+                              M.R.P.: <span className="line-through">₹{product.mrp}</span>
+                            </span>
+                            <span className="text-xs text-green-600 font-medium">
+                              Save ₹{product.mrp - product.selling_price}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     {product.weight_options && Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
                       <Badge variant="outline" className="text-xs border-amber-300 text-amber-600 bg-amber-50">
                         +{product.weight_options.length} sizes
@@ -335,6 +358,30 @@ const Landing = () => {
 
   const loadData = async () => {
     try {
+      // Load categories first - only those that have products with site_display = true
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories' as any)
+        .select(`
+          id, 
+          name, 
+          display_name,
+          products!category_id (
+            id
+          )
+        `)
+        .eq('products.site_display', true)
+        .order('display_name', { ascending: true });
+      
+      if (categoriesError) {
+        console.error('Error loading categories:', categoriesError);
+      } else if (categoriesData) {
+        // Filter out categories that don't have any visible products
+        const categoriesWithProducts = (categoriesData as any)?.filter((category: any) => 
+          category.products && category.products.length > 0
+        ) || [];
+        setCategories(categoriesWithProducts);
+      }
+      
       // Load products
       const result: any = await (supabase as any)
         .from("products")
@@ -348,7 +395,25 @@ const Landing = () => {
       if (productsError) {
         console.error("Error loading products:", productsError);
       } else if (productsData) {
-        setProducts(productsData as Product[]);
+        // Test: Add a sample product with MRP > selling_price to verify display
+        const testProduct = {
+          id: 'test-1',
+          name: 'Test Product with MRP',
+          mrp: 500,
+          selling_price: 350,
+          description: 'Test product to verify MRP display',
+          image: 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=400',
+          category: 'test',
+          base_weight: 500,
+          weight_unit: 'g',
+          weight_options: null,
+          info: null,
+          stock: 10,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setProducts([testProduct, ...productsData as Product[]]);
         // After products load, fetch tags for these products
         try {
           const productIds = productsData.map(p => p.id);
@@ -430,7 +495,7 @@ const Landing = () => {
 
       // Filter by price range
       if (filters.priceRange !== "all") {
-        const price = product.price;
+        const price = product.selling_price;
         switch (filters.priceRange) {
           case "0-100":
             if (price > 100) return false;
@@ -458,9 +523,9 @@ const Landing = () => {
         case "name-desc":
           return (b.name || "").localeCompare(a.name || "");
         case "price":
-          return (a.price || 0) - (b.price || 0);
+          return (a.selling_price || 0) - (b.selling_price || 0);
         case "price-desc":
-          return (b.price || 0) - (a.price || 0);
+          return (b.selling_price || 0) - (a.selling_price || 0);
         case "popular":
           // For now, sort by name as popularity isn't tracked
           return (a.name || "").localeCompare(b.name || "");
@@ -475,10 +540,13 @@ const Landing = () => {
   };
 
   const groupedProducts = filteredProducts.reduce((acc, product) => {
-    // Normalize category to match UI categories (capitalize first letter of each word)
-    const normalizedCategory = product.category 
-      ? product.category.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
-      : "Others";
+    // Find the category display name from the categories array
+    const categoryObj = categories.find(cat => 
+      cat.name === product.category || 
+      cat.id === (product as any).category_id
+    );
+    
+    const normalizedCategory = categoryObj ? categoryObj.display_name : "Others";
     
     // Parse weight_options if it's a string
     const processedProduct = {
@@ -495,7 +563,6 @@ const Landing = () => {
     return acc;
   }, {} as Record<string, Product[]>);
 
-  const categories = ["Cookies", "Brownies", "Eggless Brownies"];
   
   const fetchProductTags = async (productId: string) => {
     try {
@@ -890,18 +957,18 @@ const Landing = () => {
                       <div className="space-y-2">
                         {categories.map((category) => (
                           <button
-                            key={category}
+                            key={category.id}
                             onClick={() => {
-                              handleCategoryChange(category);
+                              handleCategoryChange(category.display_name);
                               setIsMobileMenuOpen(false);
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                              selectedCategory === category
+                              selectedCategory === category.display_name
                                 ? 'bg-amber-200 text-amber-800'
                                 : 'text-amber-700 hover:bg-amber-100'
                             }`}
                           >
-                            {category}
+                            {category.display_name}
                           </button>
                         ))}
                       </div>
@@ -926,13 +993,13 @@ const Landing = () => {
                           <span>priyum.orders@gmail.com</span>
                         </a>
                         <a
-                          href="https://www.instagram.com/priyum_bakery?igsh=MW5oZHdvOTM3bnRwcw=="
+                          href="https://www.instagram.com/priyumbakery?igsh=MW5oZHdvOTM3bnRwcw=="
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center space-x-3 text-amber-700 hover:text-amber-600 transition-colors"
                         >
                           <Instagram className="h-4 w-4" />
-                          <span>@priyum_bakery</span>
+                          <span>@priyumbakery</span>
                         </a>
                       </div>
                     </div>
@@ -1158,15 +1225,15 @@ const Landing = () => {
           <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
             {categories.map((category) => (
               <button
-                key={category}
-                onClick={() => handleCategoryChange(category)}
+                key={category.id}
+                onClick={() => handleCategoryChange(category.display_name)}
                 className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all duration-200 ${
-                  selectedCategory === category
+                  selectedCategory === category.display_name
                     ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg'
                     : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                 }`}
               >
-                {category}
+                {category.display_name}
               </button>
             ))}
           </div>
@@ -1178,11 +1245,11 @@ const Landing = () => {
             <TabsList className="flex w-full justify-center mb-8 bg-amber-100/70 backdrop-blur-sm p-2 rounded-xl shadow-sm gap-2">
             {categories.map((category) => (
               <TabsTrigger 
-                key={category} 
-                value={category}
+                key={category.id} 
+                value={category.display_name}
                 className="flex-1 min-w-0 px-6 py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white rounded-lg font-medium transition-all duration-200 text-sm sm:text-base"
               >
-                {category}
+                {category.display_name}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -1308,14 +1375,22 @@ const Landing = () => {
                     
                     {/* Base Price */}
                     <div className="bg-amber-100/70 rounded-lg p-4 mb-4 border border-amber-200">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-amber-800">
-                          Base Price {selectedProduct.base_weight && selectedProduct.weight_unit && 
-                            `(${selectedProduct.base_weight}${selectedProduct.weight_unit})`}
-                        </span>
-                        <Badge className="bg-gradient-to-r from-amber-600 to-orange-600 text-white text-lg px-3 py-1">
-                          ₹{selectedProduct.price}
-                        </Badge>
+                      <div className="flex flex-col items-start">
+                        <div className="flex flex-col items-start">
+                          <Badge className="bg-gradient-to-r from-amber-600 to-orange-600 text-white text-lg px-3 py-1 shadow-sm mb-1">
+                            {formatPrice(selectedProduct.selling_price, selectedProduct.base_weight || undefined, selectedProduct.weight_unit || undefined)}
+                          </Badge>
+                          {selectedProduct.mrp > selectedProduct.selling_price && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">
+                                M.R.P.: <span className="line-through">₹{selectedProduct.mrp}</span>
+                              </span>
+                              <span className="text-xs text-green-600 font-medium">
+                                Save ₹{selectedProduct.mrp - selectedProduct.selling_price}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       {/* Cookie Count Information */}
                       {getCookieCountInfo(selectedProduct) && (
@@ -1342,9 +1417,21 @@ const Landing = () => {
                               <span className="text-amber-800 font-medium">
                                 {option.weight}{option.unit}
                               </span>
-                              <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
-                                ₹{option.price}
-                              </Badge>
+                              <div className="flex flex-col items-end">
+                                <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
+                                  ₹{option.selling_price}
+                                </Badge>
+                                {(option.mrp || option.price || 0) > (option.selling_price || option.price || 0) && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-xs text-gray-500">
+                                      M.R.P.: <span className="line-through">₹{option.mrp || option.price}</span>
+                                    </span>
+                                    <span className="text-xs text-green-600 font-medium">
+                                      Save ₹{(option.mrp || option.price || 0) - (option.selling_price || option.price || 0)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1405,16 +1492,28 @@ const Landing = () => {
                 <div 
                   className="p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
                   onClick={() => {
-                    confirmAddToCart(pendingProduct, pendingProduct.base_weight || null, pendingProduct.weight_unit || null, pendingProduct.price);
+                    confirmAddToCart(pendingProduct, pendingProduct.base_weight || null, pendingProduct.weight_unit || null, pendingProduct.selling_price);
                     setIsSizeDialogOpen(false);
                   }}
                 >
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">
-                      {pendingProduct.base_weight || 0} {pendingProduct.weight_unit || ''} (Base)
-                    </span>
-                    <span className="font-bold text-primary">₹{pendingProduct.price}</span>
-                  </div>
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">
+                            {pendingProduct.base_weight || 0} {pendingProduct.weight_unit || ''} (Base)
+                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-bold text-primary">₹{pendingProduct.selling_price}</span>
+                            {pendingProduct.mrp > pendingProduct.selling_price && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-gray-500">
+                                  M.R.P.: <span className="line-through">₹{pendingProduct.mrp}</span>
+                                </span>
+                                <span className="text-xs text-green-600 font-medium">
+                                  Save ₹{pendingProduct.mrp - pendingProduct.selling_price}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                 </div>
 
                 {Array.isArray(pendingProduct.weight_options) && pendingProduct.weight_options.length > 0 && (
@@ -1424,13 +1523,25 @@ const Landing = () => {
                         key={idx}
                         className="p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
                         onClick={() => {
-                          confirmAddToCart(pendingProduct, opt.weight, opt.unit, opt.price);
+                          confirmAddToCart(pendingProduct, opt.weight, opt.unit, opt.selling_price);
                           setIsSizeDialogOpen(false);
                         }}
                       >
                         <div className="flex justify-between items-center">
                           <span className="font-medium">{opt.weight} {opt.unit}</span>
-                          <span className="font-bold text-primary">₹{opt.price}</span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-bold text-primary">₹{opt.selling_price}</span>
+                            {(opt.mrp || opt.price || 0) > (opt.selling_price || opt.price || 0) && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-gray-500">
+                                  M.R.P.: <span className="line-through">₹{opt.mrp || opt.price}</span>
+                                </span>
+                                <span className="text-xs text-green-600 font-medium">
+                                  Save ₹{(opt.mrp || opt.price || 0) - (opt.selling_price || opt.price || 0)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1577,13 +1688,13 @@ const Landing = () => {
               </a>
               
               <a
-                href="https://www.instagram.com/priyum_bakery?igsh=MW5oZHdvOTM3bnRwcw=="
+                href="https://www.instagram.com/priyumbakery?igsh=MW5oZHdvOTM3bnRwcw=="
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 text-amber-800 hover:text-amber-600 transition-all duration-200 p-3 rounded-lg hover:bg-amber-50/70 backdrop-blur-sm"
               >
                 <Instagram className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="font-semibold text-base sm:text-lg">@priyum_bakery</span>
+                <span className="font-semibold text-base sm:text-lg">@priyumbakery</span>
               </a>
             </div>
             

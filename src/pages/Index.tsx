@@ -37,14 +37,16 @@ interface CartItem {
 
 interface WeightOption {
   weight: number;
-  price: number;
+  mrp: number;
+  selling_price: number;
   unit: string;
 }
 
 interface Product {
   id: string;
   name: string;
-  price: number;
+  mrp: number;
+  selling_price: number;
   description: string;
   image: string;
   category: string;
@@ -68,7 +70,8 @@ const sampleProducts: Product[] = [
   {
     id: "1",
     name: "Chocolate Chip Cookies",
-    price: 299,
+    mrp: 350,
+    selling_price: 299,
     description: "Classic homemade cookies with premium chocolate chips",
     image: "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=400",
     category: "cookies"
@@ -76,7 +79,8 @@ const sampleProducts: Product[] = [
   {
     id: "2", 
     name: "Double Fudge Brownies",
-    price: 399,
+    mrp: 450,
+    selling_price: 399,
     description: "Rich, moist brownies with extra chocolate goodness",
     image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=400",
     category: "brownies"
@@ -84,7 +88,8 @@ const sampleProducts: Product[] = [
   {
     id: "3",
     name: "Butter Croissants", 
-    price: 199,
+    mrp: 250,
+    selling_price: 199,
     description: "Flaky, buttery pastries perfect for breakfast",
     image: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400",
     category: "pastries"
@@ -92,7 +97,8 @@ const sampleProducts: Product[] = [
   {
     id: "4",
     name: "Oatmeal Raisin Cookies",
-    price: 279, 
+    mrp: 320, 
+    selling_price: 279,
     description: "Healthy cookies with oats and sweet raisins",
     image: "https://images.unsplash.com/photo-1617016517476-9b9a083de78d?w=400",
     category: "cookies"
@@ -100,7 +106,8 @@ const sampleProducts: Product[] = [
   {
     id: "5",
     name: "Walnut Brownies",
-    price: 449,
+    mrp: 500,
+    selling_price: 449,
     description: "Premium brownies with crunchy walnuts", 
     image: "https://images.unsplash.com/photo-1551058622-2b5b76ccc050?w=400",
     category: "brownies"
@@ -108,7 +115,8 @@ const sampleProducts: Product[] = [
   {
     id: "6", 
     name: "Danish Pastries",
-    price: 249,
+    mrp: 300,
+    selling_price: 249,
     description: "Sweet pastries with fruit fillings",
     image: "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=400", 
     category: "pastries"
@@ -253,8 +261,9 @@ const Index = () => {
   const loadProducts = async () => {
     try {
       const { data, error } = await supabase
-        .from('products')
+        .from('products' as any)
         .select('*')
+        .eq('site_display', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -262,7 +271,7 @@ const Index = () => {
       // If no products in database, use sample products
       if (data && data.length > 0) {
         // Transform database products to match our Product interface
-        const transformedProducts = data.map(product => ({
+        const transformedProducts = (data as any[]).map(product => ({
           ...product,
           weight_options: product.weight_options ? 
             (typeof product.weight_options === 'string' ? 
@@ -283,13 +292,30 @@ const Index = () => {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
+      // First get all categories
+      const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories' as any)
         .select('id, name, display_name')
         .order('display_name', { ascending: true });
       
-      if (error) throw error;
-      setCategories((data as any) || []);
+      if (categoriesError) throw categoriesError;
+      
+      // Then get products with site_display = true
+      const { data: productsData, error: productsError } = await supabase
+        .from('products' as any)
+        .select('category_id, category')
+        .eq('site_display', true);
+      
+      if (productsError) throw productsError;
+      
+      // Filter categories that have products
+      const categoriesWithProducts = (categoriesData as any)?.filter((category: any) => 
+        productsData?.some((product: any) => 
+          product.category_id === category.id || product.category === category.name
+        )
+      ) || [];
+      
+      setCategories(categoriesWithProducts);
     } catch (error) {
       console.error('Error fetching categories:', error);
       // Fallback to hardcoded categories if database fetch fails
@@ -333,7 +359,7 @@ const Index = () => {
   const total = roundPrice(subtotal + shippingCharge - discountAmount);
 
   const handleAddToCart = (product: Product, selectedWeight?: number, selectedPrice?: number, selectedUnit?: string) => {
-    const price = selectedPrice || product.price;
+    const price = selectedPrice || product.selling_price;
     const weight = selectedWeight;
     const unit = selectedUnit;
     const categoryLower = (product.category || '').toLowerCase();
@@ -387,9 +413,9 @@ const Index = () => {
     }
   };
 
-  const handleWeightSelection = (weight: number, price: number, unit: string) => {
+  const handleWeightSelection = (weight: number, sellingPrice: number, unit: string) => {
     if (selectedProduct) {
-      handleAddToCart(selectedProduct, weight, price, unit);
+      handleAddToCart(selectedProduct, weight, sellingPrice, unit);
       setIsWeightDialogOpen(false);
       setSelectedProduct(null);
     }
@@ -838,12 +864,18 @@ const Index = () => {
                             {category.display_name}
                           </h4>
                           <Badge variant="outline" className="text-xs">
-                            {products.filter(p => p.category === category.name).length} products
+                            {products.filter(p => 
+                              p.category === category.name || 
+                              (p as any).category_id === category.id
+                            ).length} products
                           </Badge>
                         </div>
                         
                         {(() => {
-                          const categoryProducts = products.filter(p => p.category === category.name);
+                          const categoryProducts = products.filter(p => 
+                            p.category === category.name || 
+                            (p as any).category_id === category.id
+                          );
                           
                           if (categoryProducts.length === 0) {
                             return (
@@ -869,7 +901,19 @@ const Index = () => {
                                     <h4 className="font-medium text-foreground text-sm">{product.name}</h4>
                                     <p className="text-xs text-muted-foreground">{product.description}</p>
                                     <div className="flex items-center gap-2">
-                                      <p className="text-sm font-bold text-primary">₹{product.price}</p>
+                                      <div className="flex flex-col">
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-sm font-bold text-primary">₹{product.selling_price}</p>
+                                          {product.mrp > product.selling_price && (
+                                            <p className="text-xs text-muted-foreground line-through">₹{product.mrp}</p>
+                                          )}
+                                        </div>
+                                        {product.mrp > product.selling_price && (
+                                          <p className="text-xs text-green-600 font-medium">
+                                            Save ₹{product.mrp - product.selling_price}
+                                          </p>
+                                        )}
+                                      </div>
                                       {Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
                                         <Badge variant="secondary" className="text-xs">
                                           {product.weight_options.length} sizes
@@ -1142,13 +1186,18 @@ const Index = () => {
                 {/* Base option */}
                 <div 
                   className="p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
-                  onClick={() => handleWeightSelection(selectedProduct.base_weight || 500, selectedProduct.price, selectedProduct.weight_unit || 'grams')}
+                  onClick={() => handleWeightSelection(selectedProduct.base_weight || 500, selectedProduct.selling_price, selectedProduct.weight_unit || 'grams')}
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-medium">
                       {selectedProduct.base_weight || 500} {selectedProduct.weight_unit || 'grams'} (Base)
                     </span>
-                    <span className="font-bold text-primary">₹{selectedProduct.price}</span>
+                    <div className="flex flex-col items-end">
+                      <span className="font-bold text-primary">₹{selectedProduct.selling_price}</span>
+                      {selectedProduct.mrp > selectedProduct.selling_price && (
+                        <span className="text-xs text-muted-foreground line-through">₹{selectedProduct.mrp}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1158,13 +1207,18 @@ const Index = () => {
                     <div 
                       key={index}
                       className="p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
-                      onClick={() => handleWeightSelection(option.weight, option.price, option.unit)}
+                      onClick={() => handleWeightSelection(option.weight, option.selling_price, option.unit)}
                     >
                       <div className="flex justify-between items-center">
                         <span className="font-medium">
                           {option.weight} {option.unit}
                         </span>
-                        <span className="font-bold text-primary">₹{option.price}</span>
+                        <div className="flex flex-col items-end">
+                          <span className="font-bold text-primary">₹{option.selling_price}</span>
+                          {option.mrp > option.selling_price && (
+                            <span className="text-xs text-muted-foreground line-through">₹{option.mrp}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))

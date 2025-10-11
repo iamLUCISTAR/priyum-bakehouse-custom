@@ -7,7 +7,23 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Phone, Mail, ShoppingBag, Clock, MapPin, Star, X, Tag } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
-type Product = Database["public"]["Tables"]["products"]["Row"];
+type Product = {
+  id: string;
+  name: string;
+  mrp: number;
+  selling_price: number;
+  price?: number; // Fallback for old data
+  description: string | null;
+  image: string | null;
+  category: string | null;
+  base_weight: number | null;
+  weight_unit: string | null;
+  weight_options: any;
+  info: string | null;
+  stock: number | null;
+  created_at: string;
+  updated_at: string;
+};
 
 interface Tag {
   id: string;
@@ -136,14 +152,22 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
               
               {/* Base Price */}
               <div className="bg-amber-100/70 rounded-lg p-4 mb-4 border border-amber-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-amber-800">
-                    Base Price {product.base_weight && product.weight_unit && 
-                      `(${product.base_weight}${product.weight_unit})`}
-                  </span>
-                  <Badge className="bg-gradient-to-r from-amber-600 to-orange-600 text-white text-lg px-3 py-1">
-                    ₹{product.price}
-                  </Badge>
+                <div className="flex flex-col items-start">
+                  <div className="flex flex-col items-start">
+                    <Badge className="bg-gradient-to-r from-amber-600 to-orange-600 text-white text-lg px-3 py-1 shadow-sm mb-1">
+                      {formatPrice(product.selling_price || product.price || 0, product.base_weight || undefined, product.weight_unit || undefined)}
+                    </Badge>
+                    {(product.mrp || product.price || 0) > (product.selling_price || product.price || 0) && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">
+                          M.R.P.: <span className="line-through">₹{product.mrp || product.price}</span>
+                        </span>
+                        <span className="text-xs text-green-600 font-medium">
+                          Save ₹{(product.mrp || product.price || 0) - (product.selling_price || product.price || 0)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {/* Cookie Count Information */}
                 {getCookieCountInfo(product) && (
@@ -170,9 +194,21 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
                         <span className="text-amber-800 font-medium">
                           {option.weight}{option.unit}
                         </span>
-                        <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
-                          ₹{option.price}
-                        </Badge>
+                        <div className="flex flex-col items-end">
+                          <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50">
+                            ₹{option.selling_price || option.price}
+                          </Badge>
+                          {(option.mrp || option.price || 0) > (option.selling_price || option.price || 0) && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-gray-500">
+                                M.R.P.: <span className="line-through">₹{option.mrp || option.price}</span>
+                              </span>
+                              <span className="text-xs text-green-600 font-medium">
+                                Save ₹{(option.mrp || option.price || 0) - (option.selling_price || option.price || 0)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
