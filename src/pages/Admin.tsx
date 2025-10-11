@@ -18,14 +18,15 @@ import { Plus, Edit, Trash2, Package, Users, BarChart3, Download, LogOut, Upload
 interface Product {
   id: string;
   name: string;
-  price: number;
+  mrp: number;
+  selling_price: number;
   description: string;
   image: string;
   category: string;
   category_id?: string | null;
   stock: number;
   info?: string | null;
-  weight_options?: Array<{weight: number; price: number; unit: string}> | null;
+  weight_options?: Array<{weight: number; mrp: number; selling_price: number; unit: string}> | null;
   base_weight?: number | null;
   weight_unit?: string | null;
   site_display?: boolean;
@@ -48,7 +49,8 @@ interface ProductTag {
 
 interface WeightOption {
   weight: number;
-  price: number;
+  mrp: number;
+  selling_price: number;
   unit: string;
 }
 
@@ -121,7 +123,8 @@ export default function Admin() {
   
   const [newProduct, setNewProduct] = useState({
     name: "",
-    price: "",
+    mrp: "",
+    selling_price: "",
     description: "",
     image: "",
     category: "",
@@ -337,7 +340,7 @@ export default function Admin() {
   };
 
   const addWeightOption = () => {
-    setWeightOptions([...weightOptions, { weight: 0, price: 0, unit: newProduct.weight_unit }]);
+    setWeightOptions([...weightOptions, { weight: 0, mrp: 0, selling_price: 0, unit: newProduct.weight_unit }]);
   };
 
   const updateWeightOption = (index: number, field: keyof WeightOption, value: string | number) => {
@@ -352,7 +355,7 @@ export default function Admin() {
   };
 
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price) {
+    if (!newProduct.name || !newProduct.mrp || !newProduct.selling_price) {
       toast({
         title: "Invalid Product",
         description: "Please fill in all required fields with valid values.",
@@ -367,7 +370,8 @@ export default function Admin() {
         .from('products')
         .insert([{
           name: newProduct.name,
-          price: parseFloat(newProduct.price),
+          mrp: parseFloat(newProduct.mrp),
+          selling_price: parseFloat(newProduct.selling_price),
           description: newProduct.description || null,
           image: newProduct.image || null,
           // keep legacy string for now based on selected category_id
@@ -435,7 +439,8 @@ export default function Admin() {
     setEditingProduct(product);
     setNewProduct({
       name: product.name,
-      price: product.price.toString(),
+      mrp: product.mrp.toString(),
+      selling_price: product.selling_price.toString(),
       description: product.description || "",
       image: product.image || "",
       category: product.category || "",
@@ -456,7 +461,7 @@ export default function Admin() {
   };
 
   const handleUpdateProduct = async () => {
-    if (!editingProduct || !newProduct.name || !newProduct.price) {
+    if (!editingProduct || !newProduct.name || !newProduct.mrp || !newProduct.selling_price) {
       toast({
         title: "Invalid Product",
         description: "Please fill in all required fields with valid values.",
@@ -471,7 +476,8 @@ export default function Admin() {
         .from('products')
         .update({
           name: newProduct.name,
-          price: parseFloat(newProduct.price),
+          mrp: parseFloat(newProduct.mrp),
+          selling_price: parseFloat(newProduct.selling_price),
           description: newProduct.description || null,
           image: newProduct.image || null,
           category: newProduct.category || null,
@@ -1432,12 +1438,22 @@ export default function Admin() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="productPrice">Base Price (₹)</Label>
+                          <Label htmlFor="productMRP">MRP (₹)</Label>
                           <Input
-                            id="productPrice"
+                            id="productMRP"
                             type="number"
-                            value={newProduct.price}
-                            onChange={(e) => setNewProduct(prev => ({ ...prev, price: e.target.value }))}
+                            value={newProduct.mrp}
+                            onChange={(e) => setNewProduct(prev => ({ ...prev, mrp: e.target.value }))}
+                            placeholder="350"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="productSellingPrice">Selling Price (₹)</Label>
+                          <Input
+                            id="productSellingPrice"
+                            type="number"
+                            value={newProduct.selling_price}
+                            onChange={(e) => setNewProduct(prev => ({ ...prev, selling_price: e.target.value }))}
                             placeholder="299"
                           />
                         </div>
@@ -1630,9 +1646,16 @@ export default function Admin() {
                                 </Select>
                                 <Input
                                   type="number"
-                                  placeholder="Price"
-                                  value={option.price}
-                                  onChange={(e) => updateWeightOption(index, 'price', e.target.value)}
+                                  placeholder="MRP"
+                                  value={option.mrp}
+                                  onChange={(e) => updateWeightOption(index, 'mrp', e.target.value)}
+                                  className="w-20"
+                                />
+                                <Input
+                                  type="number"
+                                  placeholder="Selling Price"
+                                  value={option.selling_price}
+                                  onChange={(e) => updateWeightOption(index, 'selling_price', e.target.value)}
                                   className="w-20"
                                 />
                                 <Button
@@ -1722,7 +1745,14 @@ export default function Admin() {
                                           </div>
                                         </div>
                                       </TableCell>
-                                      <TableCell>₹{product.price}</TableCell>
+                                      <TableCell>
+                                        <div className="flex flex-col">
+                                          <span className="font-bold">₹{product.selling_price}</span>
+                                          {product.mrp > product.selling_price && (
+                                            <span className="text-xs text-muted-foreground line-through">₹{product.mrp}</span>
+                                          )}
+                                        </div>
+                                      </TableCell>
                                       <TableCell>
                                         <div className="text-sm">
                                           <p>Base: {product.base_weight} {product.weight_unit}</p>
@@ -2156,12 +2186,22 @@ export default function Admin() {
                 />
               </div>
               <div>
-                <Label htmlFor="editProductPrice">Base Price (₹)</Label>
+                <Label htmlFor="editProductMRP">MRP (₹)</Label>
                 <Input
-                  id="editProductPrice"
+                  id="editProductMRP"
                   type="number"
-                  value={newProduct.price}
-                  onChange={(e) => setNewProduct(prev => ({ ...prev, price: e.target.value }))}
+                  value={newProduct.mrp}
+                  onChange={(e) => setNewProduct(prev => ({ ...prev, mrp: e.target.value }))}
+                  placeholder="350"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editProductSellingPrice">Selling Price (₹)</Label>
+                <Input
+                  id="editProductSellingPrice"
+                  type="number"
+                  value={newProduct.selling_price}
+                  onChange={(e) => setNewProduct(prev => ({ ...prev, selling_price: e.target.value }))}
                   placeholder="299"
                 />
               </div>
@@ -2361,11 +2401,23 @@ export default function Admin() {
                       </Select>
                       <Input
                         type="number"
-                        placeholder="Price"
-                        value={option.price}
+                        placeholder="MRP"
+                        value={option.mrp}
                         onChange={(e) => {
                           const updated = editWeightOptions.map((opt, i) => 
-                            i === index ? { ...opt, price: Number(e.target.value) } : opt
+                            i === index ? { ...opt, mrp: Number(e.target.value) } : opt
+                          );
+                          setEditWeightOptions(updated);
+                        }}
+                        className="w-20"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Selling Price"
+                        value={option.selling_price}
+                        onChange={(e) => {
+                          const updated = editWeightOptions.map((opt, i) => 
+                            i === index ? { ...opt, selling_price: Number(e.target.value) } : opt
                           );
                           setEditWeightOptions(updated);
                         }}
