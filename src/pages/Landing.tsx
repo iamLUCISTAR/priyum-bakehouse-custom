@@ -293,7 +293,7 @@ const Landing = () => {
                         {product.mrp > product.selling_price && (
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-gray-500">
-                              M.R.P.: <span className="line-through">₹{product.mrp}</span>
+                              S.P.: <span className="line-through">₹{product.mrp}</span>
                             </span>
                             <span className="text-xs text-green-600 font-medium">
                               Save ₹{product.mrp - product.selling_price}
@@ -1383,7 +1383,7 @@ const Landing = () => {
                           {selectedProduct.mrp > selectedProduct.selling_price && (
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-500">
-                                M.R.P.: <span className="line-through">₹{selectedProduct.mrp}</span>
+                                S.P.: <span className="line-through">₹{selectedProduct.mrp}</span>
                               </span>
                               <span className="text-xs text-green-600 font-medium">
                                 Save ₹{selectedProduct.mrp - selectedProduct.selling_price}
@@ -1424,7 +1424,7 @@ const Landing = () => {
                                 {(option.mrp || option.price || 0) > (option.selling_price || option.price || 0) && (
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-xs text-gray-500">
-                                      M.R.P.: <span className="line-through">₹{option.mrp || option.price}</span>
+                                      S.P.: <span className="line-through">₹{option.mrp || option.price}</span>
                                     </span>
                                     <span className="text-xs text-green-600 font-medium">
                                       Save ₹{(option.mrp || option.price || 0) - (option.selling_price || option.price || 0)}
@@ -1505,7 +1505,7 @@ const Landing = () => {
                             {pendingProduct.mrp > pendingProduct.selling_price && (
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs text-gray-500">
-                                  M.R.P.: <span className="line-through">₹{pendingProduct.mrp}</span>
+                                  S.P.: <span className="line-through">₹{pendingProduct.mrp}</span>
                                 </span>
                                 <span className="text-xs text-green-600 font-medium">
                                   Save ₹{pendingProduct.mrp - pendingProduct.selling_price}
@@ -1534,7 +1534,7 @@ const Landing = () => {
                             {(opt.mrp || opt.price || 0) > (opt.selling_price || opt.price || 0) && (
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs text-gray-500">
-                                  M.R.P.: <span className="line-through">₹{opt.mrp || opt.price}</span>
+                                  S.P.: <span className="line-through">₹{opt.mrp || opt.price}</span>
                                 </span>
                                 <span className="text-xs text-green-600 font-medium">
                                   Save ₹{(opt.mrp || opt.price || 0) - (opt.selling_price || opt.price || 0)}
