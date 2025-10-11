@@ -160,7 +160,7 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
                     {(product.mrp || product.price || 0) > (product.selling_price || product.price || 0) && (
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-500">
-                          M.R.P.: <span className="line-through">₹{product.mrp || product.price}</span>
+                          S.P.: <span className="line-through">₹{product.mrp || product.price}</span>
                         </span>
                         <span className="text-xs text-green-600 font-medium">
                           Save ₹{(product.mrp || product.price || 0) - (product.selling_price || product.price || 0)}
@@ -201,7 +201,7 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
                           {(option.mrp || option.price || 0) > (option.selling_price || option.price || 0) && (
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs text-gray-500">
-                                M.R.P.: <span className="line-through">₹{option.mrp || option.price}</span>
+                                S.P.: <span className="line-through">₹{option.mrp || option.price}</span>
                               </span>
                               <span className="text-xs text-green-600 font-medium">
                                 Save ₹{(option.mrp || option.price || 0) - (option.selling_price || option.price || 0)}
