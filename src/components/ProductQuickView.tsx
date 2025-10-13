@@ -55,6 +55,35 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
     return `₹${price}`;
   };
 
+  const formatDescription = (description: string) => {
+    return description
+      .split('\n')
+      .map((line, index) => {
+        if (line.trim().startsWith('•')) {
+          return (
+            <div key={index} className="flex items-start mb-2">
+              <span className="text-amber-600 mr-2 mt-1">•</span>
+              <span className="text-amber-700">{line.trim().substring(1).trim()}</span>
+            </div>
+          );
+        } else if (line.trim().startsWith('  ')) {
+          return (
+            <div key={index} className="ml-4 text-amber-600 text-sm mb-1">
+              {line.trim()}
+            </div>
+          );
+        } else if (line.trim() === '') {
+          return <br key={index} />;
+        } else {
+          return (
+            <p key={index} className="mb-3 text-amber-700">
+              {line.trim()}
+            </p>
+          );
+        }
+      });
+  };
+
   const getCookieCountInfo = (product: Product) => {
     if (product.category?.toLowerCase() === 'cookies') {
       return '10-11 cookies approx';
@@ -104,14 +133,14 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
             {product.description && (
               <div>
                 <h3 className="text-lg font-semibold text-amber-800 mb-2">Description</h3>
-                <p className="text-amber-700 leading-relaxed">
-                  {product.description}
-                </p>
+                <div className="text-amber-700 leading-relaxed">
+                  {formatDescription(product.description)}
+                </div>
               </div>
             )}
 
             {/* Additional Information */}
-            {product.info && (
+            {product.info && !product.info.includes('⌛') && !product.info.includes('🤩') && (
               <div>
                 <h3 className="text-lg font-semibold text-amber-800 mb-2">Additional Information</h3>
                 <p className="text-amber-700 leading-relaxed">
@@ -121,13 +150,14 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
             )}
 
             {/* Tags */}
-            {productTags.length > 0 && (
+            {(productTags.length > 0 || (product.info && (product.info.includes('⌛') || product.info.includes('🤩')))) && (
               <div>
                 <h3 className="text-lg font-semibold text-amber-800 mb-2 flex items-center">
                   <Tag className="w-4 h-4 mr-2" />
                   Tags
                 </h3>
                 <div className="flex flex-wrap gap-2">
+                  {/* Database tags */}
                   {productTags.map((tag) => (
                     <Badge 
                       key={tag.id}
@@ -142,6 +172,23 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
                       {tag.name}
                     </Badge>
                   ))}
+                  {/* Hardcoded tags from info field */}
+                  {product.info && (product.info.includes('⌛') || product.info.includes('🤩')) && (
+                    product.info.split(',').map((tag, index) => (
+                      <Badge 
+                        key={`info-${index}`}
+                        variant="outline"
+                        className="text-sm px-3 py-1"
+                        style={{ 
+                          borderColor: tag.includes('⌛') ? '#f59e0b' : '#ec4899',
+                          color: tag.includes('⌛') ? '#f59e0b' : '#ec4899',
+                          backgroundColor: tag.includes('⌛') ? '#fef3c7' : '#fce7f3'
+                        }}
+                      >
+                        {tag.trim()}
+                      </Badge>
+                    ))
+                  )}
                 </div>
               </div>
             )}
