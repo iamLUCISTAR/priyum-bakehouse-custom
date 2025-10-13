@@ -663,6 +663,12 @@ Inside this festive collection, you'll find:
   
   const fetchProductTags = async (productId: string) => {
     try {
+      // Skip fetching tags for hardcoded products (Diwali Gift Box)
+      if (productId === 'diwali-gift-box-regular' || productId === 'diwali-gift-box-eggless') {
+        setSelectedProductTags([]);
+        return;
+      }
+      
       // Fetch product tags for this specific product
       const { data: productTagData, error: productTagError } = await supabase
         .from('product_tags')
@@ -981,6 +987,14 @@ Inside this festive collection, you'll find:
 
   const handleProductClick = async (product: Product) => {
     setSelectedProduct(product);
+    
+    // Handle hardcoded Diwali products
+    if (product.id === 'diwali-gift-box-regular' || product.id === 'diwali-gift-box-eggless') {
+      setSelectedProductTags([]);
+      setIsProductModalOpen(true);
+      return;
+    }
+    
     // Prefer prefetched map for instant render; fallback to fetch if missing
     const tags = productTagsMap[product.id];
     if (tags && tags.length > 0) {
