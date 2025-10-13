@@ -62,6 +62,14 @@ interface CartItem {
   image: string | null;
   selectedWeight?: number | null;
   selectedUnit?: string | null;
+  diwaliSelections?: {
+    brownie1: string;
+    brownie2: string;
+    brownie3: string;
+    brownie4: string;
+    cookie1: string;
+    cookie2: string;
+  };
 }
 
 const Landing = () => {
@@ -78,6 +86,15 @@ const Landing = () => {
   const [selectedCategory, setSelectedCategory] = useState("Cookies");
   const [searchQuery, setSearchQuery] = useState("");
   const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
+  const [diwaliSelections, setDiwaliSelections] = useState({
+    brownie1: '',
+    brownie2: '',
+    brownie3: '',
+    brownie4: '',
+    cookie1: '',
+    cookie2: ''
+  });
+  const [isDiwaliDialogOpen, setIsDiwaliDialogOpen] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
     priceRange: "all",
     sortBy: "name",
@@ -264,6 +281,7 @@ const Landing = () => {
                   </p>
                 )}
 
+                {/* Database tags */}
                 {productTagsMap[product.id] && productTagsMap[product.id].length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
                     {productTagsMap[product.id].map(tag => (
@@ -278,6 +296,26 @@ const Landing = () => {
                         }}
                       >
                         {tag.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Hardcoded tags from info field */}
+                {product.info && (product.info.includes('⌛') || product.info.includes('🤩')) && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {product.info.split(',').map((tag, index) => (
+                      <Badge
+                        key={`info-${index}`}
+                        variant="outline"
+                        className="text-[10px] px-2 py-1"
+                        style={{
+                          borderColor: tag.includes('⌛') ? '#f59e0b' : '#ec4899',
+                          color: tag.includes('⌛') ? '#f59e0b' : '#ec4899',
+                          backgroundColor: tag.includes('⌛') ? '#fef3c7' : '#fce7f3'
+                        }}
+                      >
+                        {tag.trim()}
                       </Badge>
                     ))}
                   </div>
@@ -379,7 +417,15 @@ const Landing = () => {
         const categoriesWithProducts = (categoriesData as any)?.filter((category: any) => 
           category.products && category.products.length > 0
         ) || [];
-        setCategories(categoriesWithProducts);
+        
+        // Add hardcoded Festive Specials category
+        const festiveCategory = {
+          id: 'festive-specials',
+          name: 'festive specials',
+          display_name: 'Festive Specials'
+        };
+        
+        setCategories([festiveCategory, ...categoriesWithProducts]);
       }
       
       // Load products
@@ -413,7 +459,58 @@ const Landing = () => {
           updated_at: new Date().toISOString()
         };
         
-        setProducts([testProduct, ...productsData as Product[]]);
+        // Add hardcoded Diwali Gift Box products
+        const diwaliGiftBoxRegular = {
+          id: 'diwali-gift-box-regular',
+          name: 'Diwali Gift Box (Regular)',
+          mrp: 599,
+          selling_price: 499,
+          description: `Celebrate the festival of lights with a truly personalized gift! Our Diwali Sweet Treat Box allows you to hand-pick a delicious assortment of our finest baked goods, making it the perfect present for family and friends.
+
+Inside this festive collection, you'll find:
+
+• Your Choice of 4 Brownie Varieties (2 pieces each):
+  From our classic fudgy favorites to unique and decadent flavors, select any four different types to create a custom sweet experience.
+
+• Your Choice of 2 Cookie Varieties (120g each):
+  Pick two of our wholesome, delightful cookie flavors to complete your box.`,
+          image: '/diwali_gif_box.jpg',
+          category: 'festive specials',
+          base_weight: null,
+          weight_unit: null,
+          weight_options: null,
+          info: 'Limited Sale ⌛, Specials 🤩',
+          stock: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        const diwaliGiftBoxEggless = {
+          id: 'diwali-gift-box-eggless',
+          name: 'Diwali Gift Box (Eggless)',
+          mrp: 649,
+          selling_price: 549,
+          description: `Celebrate the festival of lights with a truly personalized gift! Our Diwali Sweet Treat Box allows you to hand-pick a delicious assortment of our finest baked goods, making it the perfect present for family and friends.
+
+Inside this festive collection, you'll find:
+
+• Your Choice of 4 Brownie Varieties (2 pieces each):
+  From our classic fudgy favorites to unique and decadent flavors, select any four different types to create a custom sweet experience.
+
+• Your Choice of 2 Cookie Varieties (120g each):
+  Pick two of our wholesome, delightful cookie flavors to complete your box.`,
+          image: '/diwali_gif_box.jpg',
+          category: 'festive specials',
+          base_weight: null,
+          weight_unit: null,
+          weight_options: null,
+          info: 'Limited Sale ⌛, Specials 🤩',
+          stock: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        setProducts([testProduct, diwaliGiftBoxRegular, diwaliGiftBoxEggless, ...productsData as Product[]]);
         // After products load, fetch tags for these products
         try {
           const productIds = productsData.map(p => p.id);
@@ -598,9 +695,177 @@ const Landing = () => {
   };
   
   const addToCart = (product: Product) => {
-    // Open size selection dialog
-    setPendingProduct(product);
-    setIsSizeDialogOpen(true);
+    // Check if it's a Diwali Gift Box product
+    if (product.id === 'diwali-gift-box-regular' || product.id === 'diwali-gift-box-eggless') {
+      setPendingProduct(product);
+      setIsDiwaliDialogOpen(true);
+    } else {
+      // Open size selection dialog for regular products
+      setPendingProduct(product);
+      setIsSizeDialogOpen(true);
+    }
+  };
+
+  const checkAndAddFestiveBonus = (newCartItems: CartItem[]) => {
+    console.log('=== FESTIVE BONUS FUNCTION CALLED ===');
+    console.log('Input cart items:', newCartItems);
+    let updatedItems = [...newCartItems];
+
+    // COOKIE BONUS: Free Triple Choco Bites for cookies > ₹599
+    const cookieItems = updatedItems.filter(item => item.name.toLowerCase().includes('cookie'));
+    const cookiesTotal = cookieItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+    const hasTripleChocolate = updatedItems.some(item => 
+      item.name.toLowerCase().includes('triple choco bites')
+    );
+
+    if (cookiesTotal > 599 && !hasTripleChocolate) {
+      // Find the specific "Triple Choco Bites" product by ID
+      const tripleChocoProduct = products.find(p => 
+        p.id === '4254909f-8eba-4b21-8841-b62a475c0d40' || 
+        p.name.toLowerCase().includes('triple choco bites')
+      );
+      
+      if (tripleChocoProduct) {
+        const freeProduct: CartItem = {
+          id: 'triple-choco-bites-free',
+          name: `${tripleChocoProduct.name} (Free)`,
+          price: 0,
+          quantity: 1,
+          image: tripleChocoProduct.image,
+          selectedWeight: tripleChocoProduct.base_weight,
+          selectedUnit: tripleChocoProduct.weight_unit
+        };
+        
+        toast({ 
+          title: "🎉 Cookie Bonus Added!", 
+          description: `You've earned a free ${tripleChocoProduct.name} for your cookie order!` 
+        });
+        
+        updatedItems = [...updatedItems, freeProduct];
+      }
+    } else if (cookiesTotal <= 599 && hasTripleChocolate) {
+      // Remove free item if cookies total is no longer above 599
+      updatedItems = updatedItems.filter(item => 
+        !item.name.toLowerCase().includes('triple choco bites')
+      );
+      
+      toast({ 
+        title: "Cookie bonus removed", 
+        description: "Cookie order value is below ₹599, free item removed." 
+      });
+    }
+
+    // BROWNIE BONUS: Buy 2 Get 1 for brownies and blondies
+    const brownieItems = updatedItems.filter(item => 
+      (item.name.toLowerCase().includes('brownie') || 
+       item.name.toLowerCase().includes('blondie')) && 
+      !item.name.toLowerCase().includes('(free)')
+    );
+    
+    console.log('=== BROWNIE BONUS CHECK ===');
+    console.log('All cart items:', updatedItems.map(item => ({ 
+      name: item.name, 
+      hasBrownie: item.name.toLowerCase().includes('brownie'),
+      hasBlondie: item.name.toLowerCase().includes('blondie')
+    })));
+    console.log('Brownie/Blondie items found:', brownieItems);
+
+    // Remove existing brownie/blondie bonus items first
+    updatedItems = updatedItems.filter(item => 
+      !(item.name.toLowerCase().includes('brownie') || item.name.toLowerCase().includes('blondie')) || 
+      !item.name.toLowerCase().includes('(free)')
+    );
+
+    // Calculate bonus for each brownie type individually
+    brownieItems.forEach(brownieItem => {
+      console.log('Processing brownie item:', brownieItem);
+      
+      // Find the original product to get its weight details
+      const originalProduct = products.find(p => 
+        p.name.toLowerCase().includes(brownieItem.name.toLowerCase().replace(' (regular)', '').replace(' (eggless)', '')) ||
+        brownieItem.name.toLowerCase().includes(p.name.toLowerCase())
+      );
+
+      console.log('Original product found:', originalProduct);
+
+      if (originalProduct) {
+        // Calculate total weight purchased for this item
+        let itemWeight = 0;
+        
+        if (brownieItem.selectedWeight && brownieItem.selectedUnit) {
+          // Use selected weight from cart item
+          itemWeight = brownieItem.selectedWeight * brownieItem.quantity;
+          console.log('Using selected weight:', brownieItem.selectedWeight, 'x', brownieItem.quantity, '=', itemWeight);
+        } else if (originalProduct.base_weight && originalProduct.weight_unit) {
+          // Use base weight from product
+          itemWeight = originalProduct.base_weight * brownieItem.quantity;
+          console.log('Using base weight:', originalProduct.base_weight, 'x', brownieItem.quantity, '=', itemWeight);
+        } else {
+          // Fallback: assume 1 piece per quantity
+          itemWeight = brownieItem.quantity;
+          console.log('Using fallback weight:', brownieItem.quantity);
+        }
+
+        // Calculate bonus pieces for this specific product (1 free piece for every 2 purchased)
+        const bonusPieces = Math.floor(itemWeight / 2);
+        console.log('Item weight:', itemWeight, 'Bonus pieces for this product:', bonusPieces);
+        
+        if (bonusPieces > 0) {
+          const bonusItem: CartItem = {
+            id: `${brownieItem.id}-bonus-pieces`,
+            name: `${brownieItem.name.replace(' (Regular)', '').replace(' (Eggless)', '').replace(/ \(\d+pieces?\)/, '')} (Free)`,
+            price: 0,
+            quantity: bonusPieces,
+            image: originalProduct.image,
+            selectedWeight: 1,
+            selectedUnit: 'piece'
+          };
+          
+          console.log('Adding bonus pieces for this product:', bonusItem);
+          updatedItems = [...updatedItems, bonusItem];
+        }
+      } else {
+        console.log('Original product not found, using fallback logic');
+        // Fallback: Use cart quantity if product not found
+        const bonusPieces = Math.floor(brownieItem.quantity / 2);
+        
+        if (bonusPieces > 0) {
+          const bonusItem: CartItem = {
+            id: `${brownieItem.id}-bonus-pieces`,
+            name: `${brownieItem.name.replace(' (Regular)', '').replace(' (Eggless)', '').replace(/ \(\d+pieces?\)/, '')} (Free)`,
+            price: 0,
+            quantity: bonusPieces,
+            image: brownieItem.image,
+            selectedWeight: 1,
+            selectedUnit: 'piece'
+          };
+          
+          console.log('Adding fallback bonus pieces:', bonusItem);
+          updatedItems = [...updatedItems, bonusItem];
+        }
+      }
+    });
+
+    // Show toast if brownie/blondie bonuses were added/removed
+    const hasBrownieBonus = updatedItems.some(item => 
+      (item.name.toLowerCase().includes('brownie') || item.name.toLowerCase().includes('blondie')) && 
+      item.name.toLowerCase().includes('(free)')
+    );
+    
+    if (hasBrownieBonus && brownieItems.length > 0) {
+      const totalBonus = updatedItems
+        .filter(item => (item.name.toLowerCase().includes('brownie') || item.name.toLowerCase().includes('blondie')) && item.name.toLowerCase().includes('(free)'))
+        .reduce((sum, item) => sum + item.quantity, 0);
+      
+      if (totalBonus > 0) {
+        toast({ 
+          title: "🎉 Brownie/Blondie Bonus Added!", 
+          description: `You've earned ${totalBonus} free brownie${totalBonus > 1 ? 's' : ''} with Buy 2 Get 1 offer!` 
+        });
+      }
+    }
+    
+    return updatedItems;
   };
 
   const confirmAddToCart = (product: Product, weight: number | null, unit: string | null, price: number) => {
@@ -614,31 +879,45 @@ const Landing = () => {
     const displayName = weight && unit ? `${baseName} (${weight}${unit})` : baseName;
     setCartItems(prev => {
       const existing = prev.find(ci => ci.id === id);
+      let newCartItems;
+      
       if (existing) {
-        return prev.map(ci => ci.id === id ? { ...ci, quantity: ci.quantity + 1 } : ci);
+        newCartItems = prev.map(ci => ci.id === id ? { ...ci, quantity: ci.quantity + 1 } : ci);
+      } else {
+        newCartItems = [...prev, {
+          id,
+          name: displayName,
+          price: price || 0,
+          quantity: 1,
+          image: product.image || null,
+          selectedWeight: weight,
+          selectedUnit: unit,
+        }];
       }
-      return [...prev, {
-        id,
-        name: displayName,
-        price: price || 0,
-        quantity: 1,
-        image: product.image || null,
-        selectedWeight: weight,
-        selectedUnit: unit,
-      }];
+      
+      // Check and add festive bonus
+      return checkAndAddFestiveBonus(newCartItems);
     });
     toast({ title: "Added to cart", description: `${displayName} added to cart.` });
   };
 
   const updateCartQuantity = (id: string, quantity: number) => {
-    setCartItems(prev => prev
-      .map(ci => ci.id === id ? { ...ci, quantity: Math.max(1, quantity) } : ci)
-      .filter(ci => ci.quantity > 0)
-    );
+    setCartItems(prev => {
+      const updatedItems = prev
+        .map(ci => ci.id === id ? { ...ci, quantity: Math.max(1, quantity) } : ci)
+        .filter(ci => ci.quantity > 0);
+      
+      // Check and add festive bonus after quantity update
+      return checkAndAddFestiveBonus(updatedItems);
+    });
   };
 
   const removeFromCart = (id: string) => {
-    setCartItems(prev => prev.filter(ci => ci.id !== id));
+    setCartItems(prev => {
+      const updatedItems = prev.filter(ci => ci.id !== id);
+      // Check and add festive bonus after removal
+      return checkAndAddFestiveBonus(updatedItems);
+    });
   };
 
   const clearCart = () => setCartItems([]);
@@ -673,6 +952,20 @@ const Landing = () => {
     lines.push(`Order Items:`);
     cartItems.forEach((item, idx) => {
       lines.push(`${idx + 1}. ${item.name} x ${item.quantity} = ₹${item.price * item.quantity}`);
+      
+      // Add Diwali Gift Box selections if applicable
+      if (item.name.includes('Diwali Gift Box')) {
+        const selections = item.diwaliSelections;
+        if (selections) {
+          lines.push(`   Diwali Gift Box Selections:`);
+          lines.push(`   - Brownie Variety 1: ${selections.brownie1 || 'Not specified'}`);
+          lines.push(`   - Brownie Variety 2: ${selections.brownie2 || 'Not specified'}`);
+          lines.push(`   - Brownie Variety 3: ${selections.brownie3 || 'Not specified'}`);
+          lines.push(`   - Brownie Variety 4: ${selections.brownie4 || 'Not specified'}`);
+          lines.push(`   - Cookie Variety 1: ${selections.cookie1 || 'Not specified'}`);
+          lines.push(`   - Cookie Variety 2: ${selections.cookie2 || 'Not specified'}`);
+        }
+      }
     });
     lines.push("");
     lines.push(`Subtotal: ₹${cartSubtotal}`);
@@ -711,6 +1004,35 @@ const Landing = () => {
       return `₹${price} (${weight}${unit})`;
     }
     return `₹${price}`;
+  };
+
+  const formatDescription = (description: string) => {
+    return description
+      .split('\n')
+      .map((line, index) => {
+        if (line.trim().startsWith('•')) {
+          return (
+            <div key={index} className="flex items-start mb-2">
+              <span className="text-amber-600 mr-2 mt-1">•</span>
+              <span className="text-amber-700">{line.trim().substring(1).trim()}</span>
+            </div>
+          );
+        } else if (line.trim().startsWith('  ')) {
+          return (
+            <div key={index} className="ml-4 text-amber-600 text-sm mb-1">
+              {line.trim()}
+            </div>
+          );
+        } else if (line.trim() === '') {
+          return <br key={index} />;
+        } else {
+          return (
+            <p key={index} className="mb-3 text-amber-700">
+              {line.trim()}
+            </p>
+          );
+        }
+      });
   };
 
   const getCookieCountInfo = (product: Product) => {
@@ -1048,9 +1370,9 @@ const Landing = () => {
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white overflow-hidden">
         <div className="scrolling-banner-wrapper">
           <div className="scrolling-banner-track">
-            <div className="scrolling-banner-item">
+            {/* <div className="scrolling-banner-item">
               🎉 Flat 10% off on your first order with us (min order ₹499).
-            </div>
+            </div> */}
             <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
               🚚 Shipping available all across India
@@ -1060,10 +1382,10 @@ const Landing = () => {
               💵 Shipping charges as applicable
             </div>
             <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
+            {/* <div className="scrolling-banner-item">
               🎉 Flat 10% off on your first order with us (min order ₹499).
             </div>
-            <div className="scrolling-banner-separator">|</div>
+            <div className="scrolling-banner-separator">|</div> */}
             <div className="scrolling-banner-item">
               🚚 Shipping available all across India
             </div>
@@ -1328,14 +1650,14 @@ const Landing = () => {
                   {selectedProduct.description && (
                     <div>
                       <h3 className="text-lg font-semibold text-amber-800 mb-2">Description</h3>
-                      <p className="text-amber-700 leading-relaxed">
-                        {selectedProduct.description}
-                      </p>
+                      <div className="text-amber-700 leading-relaxed">
+                        {formatDescription(selectedProduct.description)}
+                      </div>
                     </div>
                   )}
 
                   {/* Additional Information */}
-                  {selectedProduct.info && (
+                  {selectedProduct.info && !selectedProduct.info.includes('⌛') && !selectedProduct.info.includes('🤩') && (
                     <div>
                       <h3 className="text-lg font-semibold text-amber-800 mb-2">Additional Information</h3>
                       <p className="text-amber-700 leading-relaxed">
@@ -1345,13 +1667,14 @@ const Landing = () => {
                   )}
 
                   {/* Tags */}
-                  {selectedProductTags.length > 0 && (
+                  {(selectedProductTags.length > 0 || (selectedProduct.info && (selectedProduct.info.includes('⌛') || selectedProduct.info.includes('🤩')))) && (
                     <div>
                       <h3 className="text-lg font-semibold text-amber-800 mb-2 flex items-center">
                         <Tag className="w-4 h-4 mr-2" />
                         Tags
                       </h3>
                       <div className="flex flex-wrap gap-2">
+                        {/* Database tags */}
                         {selectedProductTags.map((tag) => (
                           <Badge 
                             key={tag.id}
@@ -1366,6 +1689,23 @@ const Landing = () => {
                             {tag.name}
                           </Badge>
                         ))}
+                        {/* Hardcoded tags from info field */}
+                        {selectedProduct.info && (selectedProduct.info.includes('⌛') || selectedProduct.info.includes('🤩')) && (
+                          selectedProduct.info.split(',').map((tag, index) => (
+                            <Badge 
+                              key={`info-${index}`}
+                              variant="outline"
+                              className="text-sm px-3 py-1"
+                              style={{ 
+                                borderColor: tag.includes('⌛') ? '#f59e0b' : '#ec4899',
+                                color: tag.includes('⌛') ? '#f59e0b' : '#ec4899',
+                                backgroundColor: tag.includes('⌛') ? '#fef3c7' : '#fce7f3'
+                              }}
+                            >
+                              {tag.trim()}
+                            </Badge>
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
@@ -1655,6 +1995,148 @@ const Landing = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Diwali Gift Box Selection Dialog */}
+        <Dialog open={isDiwaliDialogOpen} onOpenChange={setIsDiwaliDialogOpen}>
+          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Customize Your Diwali Gift Box</DialogTitle>
+            </DialogHeader>
+            {pendingProduct && (
+              <div className="space-y-6 py-4">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-amber-800 mb-2">{pendingProduct.name}</h3>
+                  <p className="text-sm text-gray-600 mb-4">Please select your preferred varieties:</p>
+                </div>
+
+                <div className="grid gap-4">
+                  {/* Brownie Selections */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-amber-800">Brownie Varieties (Select 4)</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {['Brownie Variety 1', 'Brownie Variety 2', 'Brownie Variety 3', 'Brownie Variety 4'].map((label, index) => {
+                        const brownieProducts = products.filter(p => 
+                          (p.category?.toLowerCase() === 'brownies' || p.category?.toLowerCase() === 'brownie') && 
+                          p.id !== 'diwali-gift-box-regular' && 
+                          p.id !== 'diwali-gift-box-eggless'
+                        );
+                        return (
+                          <div key={index}>
+                            <Label htmlFor={`brownie${index + 1}`}>{label}</Label>
+                            <select
+                              id={`brownie${index + 1}`}
+                              value={diwaliSelections[`brownie${index + 1}` as keyof typeof diwaliSelections]}
+                              onChange={(e) => setDiwaliSelections(prev => ({
+                                ...prev,
+                                [`brownie${index + 1}`]: e.target.value
+                              }))}
+                              className="w-full px-3 py-2 border border-amber-300 rounded-md bg-white text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                              <option value="">Select a brownie variety...</option>
+                              {brownieProducts.map((product) => (
+                                <option key={product.id} value={product.name}>
+                                  {product.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Cookie Selections */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-amber-800">Cookie Varieties (Select 2)</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {['Cookie Variety 1', 'Cookie Variety 2'].map((label, index) => {
+                        const cookieProducts = products.filter(p => 
+                          (p.category?.toLowerCase() === 'cookies' || p.category?.toLowerCase() === 'cookie') && 
+                          p.id !== 'diwali-gift-box-regular' && 
+                          p.id !== 'diwali-gift-box-eggless'
+                        );
+                        return (
+                          <div key={index}>
+                            <Label htmlFor={`cookie${index + 1}`}>{label}</Label>
+                            <select
+                              id={`cookie${index + 1}`}
+                              value={diwaliSelections[`cookie${index + 1}` as keyof typeof diwaliSelections]}
+                              onChange={(e) => setDiwaliSelections(prev => ({
+                                ...prev,
+                                [`cookie${index + 1}`]: e.target.value
+                              }))}
+                              className="w-full px-3 py-2 border border-amber-300 rounded-md bg-white text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                              <option value="">Select a cookie variety...</option>
+                              {cookieProducts.map((product) => (
+                                <option key={product.id} value={product.name}>
+                                  {product.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 justify-end">
+                  <Button variant="outline" onClick={() => {
+                    setIsDiwaliDialogOpen(false);
+                    setDiwaliSelections({
+                      brownie1: '',
+                      brownie2: '',
+                      brownie3: '',
+                      brownie4: '',
+                      cookie1: '',
+                      cookie2: ''
+                    });
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {
+                    if (pendingProduct) {
+                      const id = `${pendingProduct.id}-diwali`;
+                      setCartItems(prev => {
+                        const existing = prev.find(ci => ci.id === id);
+                        let newCartItems;
+                        
+                        if (existing) {
+                          newCartItems = prev.map(ci => ci.id === id ? { ...ci, quantity: ci.quantity + 1 } : ci);
+                        } else {
+                          newCartItems = [...prev, {
+                            id,
+                            name: pendingProduct.name,
+                            price: pendingProduct.selling_price,
+                            quantity: 1,
+                            image: pendingProduct.image || null,
+                            diwaliSelections: { ...diwaliSelections }
+                          }];
+                        }
+                        
+                        // Check and add festive bonus
+                        return checkAndAddFestiveBonus(newCartItems);
+                      });
+                      toast({ title: "Added to cart", description: `${pendingProduct.name} added to cart.` });
+                      setIsDiwaliDialogOpen(false);
+                      setDiwaliSelections({
+                        brownie1: '',
+                        brownie2: '',
+                        brownie3: '',
+                        brownie4: '',
+                        cookie1: '',
+                        cookie2: ''
+                      });
+                    }
+                  }}>
+                    Add to Cart
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>
