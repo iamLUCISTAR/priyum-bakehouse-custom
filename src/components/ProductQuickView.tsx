@@ -56,31 +56,68 @@ const ProductQuickView = ({ product, contactInfo, children, prefetchedTags, onAd
   };
 
   const formatDescription = (description: string) => {
+    const renderTextWithBold = (text: string) => {
+      const parts = text.split(/(\*\*.*?\*\*)/g);
+      return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          const boldText = part.slice(2, -2);
+          return (
+            <strong key={index} className="text-amber-800 font-semibold">
+              {boldText}
+            </strong>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      });
+    };
+
     return description
       .split('\n')
       .map((line, index) => {
-        if (line.trim().startsWith('•')) {
-          return (
-            <div key={index} className="flex items-start mb-2">
-              <span className="text-amber-600 mr-2 mt-1">•</span>
-              <span className="text-amber-700">{line.trim().substring(1).trim()}</span>
-            </div>
-          );
-        } else if (line.trim().startsWith('  ')) {
-          return (
-            <div key={index} className="ml-4 text-amber-600 text-sm mb-1">
-              {line.trim()}
-            </div>
-          );
-        } else if (line.trim() === '') {
+        const trimmedLine = line.trim();
+        
+        // Handle empty lines
+        if (trimmedLine === '') {
           return <br key={index} />;
-        } else {
+        }
+        
+        // Handle bullet points with enhanced styling
+        if (trimmedLine.startsWith('•')) {
+          const content = trimmedLine.substring(1).trim();
           return (
-            <p key={index} className="mb-3 text-amber-700">
-              {line.trim()}
+            <div key={index} className="flex items-start mb-3">
+              <span className="text-amber-500 mr-3 mt-1 text-lg">•</span>
+              <span className="text-amber-700 leading-relaxed">
+                {renderTextWithBold(content)}
+              </span>
+            </div>
+          );
+        }
+        
+        // Handle emoji lines (title lines)
+        if (trimmedLine.includes('🎁') || trimmedLine.includes('✨')) {
+          return (
+            <p key={index} className="mb-4 text-amber-800 font-semibold text-lg leading-relaxed">
+              {renderTextWithBold(trimmedLine)}
             </p>
           );
         }
+        
+        // Handle "What's Inside:" header
+        if (trimmedLine.includes("What's Inside:")) {
+          return (
+            <p key={index} className="mb-3 text-amber-800 font-semibold text-base">
+              {renderTextWithBold(trimmedLine)}
+            </p>
+          );
+        }
+        
+        // Default paragraph
+        return (
+          <p key={index} className="mb-3 text-amber-700 leading-relaxed">
+            {renderTextWithBold(trimmedLine)}
+          </p>
+        );
       });
   };
 
