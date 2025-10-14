@@ -263,7 +263,6 @@ const Index = () => {
       const { data, error } = await supabase
         .from('products' as any)
         .select('*')
-        .eq('site_display', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -292,30 +291,14 @@ const Index = () => {
 
   const fetchCategories = async () => {
     try {
-      // First get all categories
+      // Get all categories (show even if currently no visible products)
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories' as any)
         .select('id, name, display_name')
         .order('display_name', { ascending: true });
-      
       if (categoriesError) throw categoriesError;
-      
-      // Then get products with site_display = true
-      const { data: productsData, error: productsError } = await supabase
-        .from('products' as any)
-        .select('category_id, category')
-        .eq('site_display', true);
-      
-      if (productsError) throw productsError;
-      
-      // Filter categories that have products
-      const categoriesWithProducts = (categoriesData as any)?.filter((category: any) => 
-        productsData?.some((product: any) => 
-          product.category_id === category.id || product.category === category.name
-        )
-      ) || [];
-      
-      setCategories(categoriesWithProducts);
+
+      setCategories((categoriesData as any) || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
       // Fallback to hardcoded categories if database fetch fails
@@ -848,7 +831,7 @@ const Index = () => {
               <CardContent>
                 {/* Category Tabs */}
                 <Tabs defaultValue={categories[0]?.name || "cookies"} className="w-full">
-                  <TabsList className="grid w-full mb-4" style={{ gridTemplateColumns: `repeat(${Math.min(categories.length, 4)}, 1fr)` }}>
+                  <TabsList className="grid w-full mb-4" style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(categories.length, 4))}, 1fr)` }}>
                     {categories.map((category) => (
                       <TabsTrigger key={category.id} value={category.name} className="text-xs">
                         {category.display_name}
@@ -864,18 +847,18 @@ const Index = () => {
                             {category.display_name}
                           </h4>
                           <Badge variant="outline" className="text-xs">
-                            {products.filter(p => 
-                              p.category === category.name || 
-                              (p as any).category_id === category.id
-                            ).length} products
+                            {products.filter(p => {
+                              const normalize = (s?: string | null) => (s || '').trim().toLowerCase();
+                              return (p as any).category_id === category.id || normalize(p.category) === normalize(category.name);
+                            }).length} products
                           </Badge>
                         </div>
                         
                         {(() => {
-                          const categoryProducts = products.filter(p => 
-                            p.category === category.name || 
-                            (p as any).category_id === category.id
-                          );
+                          const categoryProducts = products.filter(p => {
+                            const normalize = (s?: string | null) => (s || '').trim().toLowerCase();
+                            return (p as any).category_id === category.id || normalize(p.category) === normalize(category.name);
+                          });
                           
                           if (categoryProducts.length === 0) {
                             return (

@@ -195,11 +195,32 @@ export default function Admin() {
 
       if (error) throw error;
       
-      // Transform the data to match our interface
-      const transformedData = data?.map(item => ({
-        ...item,
-        weight_options: item.weight_options ? (typeof item.weight_options === 'string' ? JSON.parse(item.weight_options) : item.weight_options) : null
-      })) || [];
+      // Transform the data to match our interface and ensure mrp/selling_price exist
+      const transformedData: Product[] = (data || []).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        mrp: Number(item.mrp ?? item.price ?? 0),
+        selling_price: Number(item.selling_price ?? item.price ?? 0),
+        description: item.description ?? '',
+        image: item.image ?? '',
+        category: item.category ?? '',
+        category_id: item.category_id ?? null,
+        stock: Number(item.stock ?? 0),
+        info: item.info ?? null,
+        base_weight: item.base_weight ?? null,
+        weight_unit: item.weight_unit ?? null,
+        site_display: Boolean(item.site_display),
+        weight_options: item.weight_options
+          ? (typeof item.weight_options === 'string'
+              ? JSON.parse(item.weight_options)
+              : item.weight_options).map((opt: any) => ({
+                  weight: Number(opt.weight ?? 0),
+                  mrp: Number(opt.mrp ?? opt.price ?? 0),
+                  selling_price: Number(opt.selling_price ?? opt.price ?? 0),
+                  unit: opt.unit ?? 'grams',
+                }))
+          : null,
+      }));
       
       setProducts(transformedData);
     } catch (error) {
@@ -366,7 +387,7 @@ export default function Admin() {
 
     try {
       // Insert the product
-      const { data: productData, error } = await supabase
+      const { data: productData, error } = await (supabase as any)
         .from('products')
         .insert([{
           name: newProduct.name,
@@ -410,7 +431,8 @@ export default function Admin() {
 
       setNewProduct({
         name: "",
-        price: "",
+        mrp: "",
+        selling_price: "",
         description: "",
         image: "",
         category: "",
@@ -424,8 +446,9 @@ export default function Admin() {
       setWeightOptions([]);
       setSelectedProductTags([]);
       setIsAddProductOpen(false);
-      fetchProducts();
-      fetchProductTags();
+      await fetchProducts();
+      await fetchCategories();
+      await fetchProductTags();
     } catch (error) {
       toast({
         title: "Error",
@@ -523,7 +546,8 @@ export default function Admin() {
 
       setNewProduct({
         name: "",
-        price: "",
+        mrp: "",
+        selling_price: "",
         description: "",
         image: "",
         category: "",
@@ -1697,7 +1721,12 @@ export default function Admin() {
                     </TabsList>
                     
                     {categories.map((category) => {
-                      const categoryProducts = products.filter(p => (p.category_id ? p.category_id === category.id : p.category === category.name));
+                      const normalize = (s?: string | null) => (s || '').trim().toLowerCase();
+                      const categoryProducts = products.filter(p => {
+                        const byId = p.category_id && p.category_id === category.id;
+                        const byName = normalize(p.category) === normalize(category.name);
+                        return Boolean(byId || byName);
+                      });
                       return (
                         <TabsContent key={category.id} value={category.name}>
                           <div className="space-y-4">
@@ -2359,7 +2388,7 @@ export default function Admin() {
               <div className="col-span-2">
                 <div className="flex items-center justify-between mb-2">
                   <Label>Weight & Price Options</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setEditWeightOptions([...editWeightOptions, { weight: 0, price: 0, unit: newProduct.weight_unit }])}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setEditWeightOptions([...editWeightOptions, { weight: 0, mrp: 0, selling_price: 0, unit: newProduct.weight_unit }])}>
                     <Plus className="w-4 h-4 mr-1" />
                     Add Option
                   </Button>
