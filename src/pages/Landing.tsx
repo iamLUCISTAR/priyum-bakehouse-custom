@@ -62,14 +62,6 @@ interface CartItem {
   image: string | null;
   selectedWeight?: number | null;
   selectedUnit?: string | null;
-  diwaliSelections?: {
-    brownie1: string;
-    brownie2: string;
-    brownie3: string;
-    brownie4: string;
-    cookie1: string;
-    cookie2: string;
-  };
 }
 
 const Landing = () => {
@@ -86,15 +78,6 @@ const Landing = () => {
   const [selectedCategory, setSelectedCategory] = useState("Cookies");
   const [searchQuery, setSearchQuery] = useState("");
   const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
-  const [diwaliSelections, setDiwaliSelections] = useState({
-    brownie1: '',
-    brownie2: '',
-    brownie3: '',
-    brownie4: '',
-    cookie1: '',
-    cookie2: ''
-  });
-  const [isDiwaliDialogOpen, setIsDiwaliDialogOpen] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
     priceRange: "all",
     sortBy: "name",
@@ -258,7 +241,11 @@ const Landing = () => {
         {categoryProducts.map((product) => {
           const ProductCard = (
             <Card 
-              className="group overflow-hidden hover:shadow-xl transition-all duration-300 bg-amber-50/80 backdrop-blur-sm border-amber-200/50 hover:scale-105 cursor-pointer touch-manipulation"
+              className={`group overflow-hidden hover:shadow-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 cursor-pointer touch-manipulation ${
+                product.id === 'diwali-gift-box-regular' || product.id === 'diwali-gift-box-eggless'
+                  ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 hover:border-amber-400 shadow-lg'
+                  : 'bg-amber-50/80 border-amber-200/50'
+              }`}
             >
               {product.image && (
                 <div className="overflow-hidden relative">
@@ -269,6 +256,11 @@ const Landing = () => {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  {(product.id === 'diwali-gift-box-regular' || product.id === 'diwali-gift-box-eggless') && (
+                    <div className="absolute top-2 right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-1 rounded-full text-xs font-semibold shadow-lg">
+                      🎁 Diwali Special
+                    </div>
+                  )}
                 </div>
               )}
               <CardContent className="p-4 sm:p-6">
@@ -276,9 +268,16 @@ const Landing = () => {
                   {product.name}
                 </h3>
                 {product.description && (
-                  <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
-                    {product.description}
-                  </p>
+                  <div className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                    {product.id === 'diwali-gift-box-regular' || product.id === 'diwali-gift-box-eggless' ? (
+                      <div className="space-y-1">
+                        <p className="font-medium text-amber-700">🎁 Diwali Special Gift Box</p>
+                        <p className="text-xs text-gray-600">Perfect blend of traditional flavors & classic favorites</p>
+                      </div>
+                    ) : (
+                      <p className="line-clamp-2">{product.description}</p>
+                    )}
+                  </div>
                 )}
 
                 {/* Database tags */}
@@ -465,15 +464,15 @@ const Landing = () => {
           name: 'Diwali Gift Box (Regular)',
           mrp: 599,
           selling_price: 499,
-          description: `Celebrate the festival of lights with a truly personalized gift! Our Diwali Sweet Treat Box allows you to hand-pick a delicious assortment of our finest baked goods, making it the perfect present for family and friends.
+          description: `🎁 **Diwali Special Gift Box** - A perfect blend of traditional flavors and classic favorites!
 
-Inside this festive collection, you'll find:
+**What's Inside:**
+• **Festive Nankhatai** (10 pieces) - Traditional Indian shortbread cookies
+• **Saffron Pistachio Cookies** (10 pieces) - Decadent saffron-infused treats  
+• **Classic Fudge Brownies** (4 mini pieces) - Rich, chocolatey goodness
+• **Classic Blondies** (4 mini pieces) - Buttery, caramel-like perfection
 
-• Your Choice of 4 Brownie Varieties (2 pieces each):
-  From our classic fudgy favorites to unique and decadent flavors, select any four different types to create a custom sweet experience.
-
-• Your Choice of 2 Cookie Varieties (120g each):
-  Pick two of our wholesome, delightful cookie flavors to complete your box.`,
+✨ Perfect for sharing happiness this Diwali - beautifully packaged and ready to spread joy!`,
           image: '/diwali_gif_box.jpg',
           category: 'festive specials',
           base_weight: null,
@@ -490,15 +489,15 @@ Inside this festive collection, you'll find:
           name: 'Diwali Gift Box (Eggless)',
           mrp: 649,
           selling_price: 549,
-          description: `Celebrate the festival of lights with a truly personalized gift! Our Diwali Sweet Treat Box allows you to hand-pick a delicious assortment of our finest baked goods, making it the perfect present for family and friends.
+          description: `🎁 **Diwali Special Gift Box** - A perfect blend of traditional flavors and classic favorites!
 
-Inside this festive collection, you'll find:
+**What's Inside:**
+• **Festive Nankhatai** (10 pieces) - Traditional Indian shortbread cookies
+• **Saffron Pistachio Cookies** (10 pieces) - Decadent saffron-infused treats  
+• **Classic Fudge Brownies** (4 mini pieces) - Rich, chocolatey goodness
+• **Classic Blondies** (4 mini pieces) - Buttery, caramel-like perfection
 
-• Your Choice of 4 Brownie Varieties (2 pieces each):
-  From our classic fudgy favorites to unique and decadent flavors, select any four different types to create a custom sweet experience.
-
-• Your Choice of 2 Cookie Varieties (120g each):
-  Pick two of our wholesome, delightful cookie flavors to complete your box.`,
+✨ Perfect for sharing happiness this Diwali - beautifully packaged and ready to spread joy!`,
           image: '/diwali_gif_box.jpg',
           category: 'festive specials',
           base_weight: null,
@@ -703,8 +702,28 @@ Inside this festive collection, you'll find:
   const addToCart = (product: Product) => {
     // Check if it's a Diwali Gift Box product
     if (product.id === 'diwali-gift-box-regular' || product.id === 'diwali-gift-box-eggless') {
-      setPendingProduct(product);
-      setIsDiwaliDialogOpen(true);
+      // Add Diwali Gift Box directly to cart without selections
+      const id = `${product.id}-diwali`;
+      setCartItems(prev => {
+        const existing = prev.find(ci => ci.id === id);
+        let newCartItems;
+        
+        if (existing) {
+          newCartItems = prev.map(ci => ci.id === id ? { ...ci, quantity: ci.quantity + 1 } : ci);
+        } else {
+          newCartItems = [...prev, {
+            id,
+            name: product.name,
+            price: product.selling_price,
+            quantity: 1,
+            image: product.image || null
+          }];
+        }
+        
+        // Check and add festive bonus
+        return checkAndAddFestiveBonus(newCartItems);
+      });
+      toast({ title: "Added to cart", description: `${product.name} added to cart.` });
     } else {
       // Open size selection dialog for regular products
       setPendingProduct(product);
@@ -959,19 +978,6 @@ Inside this festive collection, you'll find:
     cartItems.forEach((item, idx) => {
       lines.push(`${idx + 1}. ${item.name} x ${item.quantity} = ₹${item.price * item.quantity}`);
       
-      // Add Diwali Gift Box selections if applicable
-      if (item.name.includes('Diwali Gift Box')) {
-        const selections = item.diwaliSelections;
-        if (selections) {
-          lines.push(`   Diwali Gift Box Selections:`);
-          lines.push(`   - Brownie Variety 1: ${selections.brownie1 || 'Not specified'}`);
-          lines.push(`   - Brownie Variety 2: ${selections.brownie2 || 'Not specified'}`);
-          lines.push(`   - Brownie Variety 3: ${selections.brownie3 || 'Not specified'}`);
-          lines.push(`   - Brownie Variety 4: ${selections.brownie4 || 'Not specified'}`);
-          lines.push(`   - Cookie Variety 1: ${selections.cookie1 || 'Not specified'}`);
-          lines.push(`   - Cookie Variety 2: ${selections.cookie2 || 'Not specified'}`);
-        }
-      }
     });
     lines.push("");
     lines.push(`Subtotal: ₹${cartSubtotal}`);
@@ -1021,31 +1027,68 @@ Inside this festive collection, you'll find:
   };
 
   const formatDescription = (description: string) => {
+    const renderTextWithBold = (text: string) => {
+      const parts = text.split(/(\*\*.*?\*\*)/g);
+      return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          const boldText = part.slice(2, -2);
+          return (
+            <strong key={index} className="text-amber-800 font-semibold">
+              {boldText}
+            </strong>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      });
+    };
+
     return description
       .split('\n')
       .map((line, index) => {
-        if (line.trim().startsWith('•')) {
-          return (
-            <div key={index} className="flex items-start mb-2">
-              <span className="text-amber-600 mr-2 mt-1">•</span>
-              <span className="text-amber-700">{line.trim().substring(1).trim()}</span>
-            </div>
-          );
-        } else if (line.trim().startsWith('  ')) {
-          return (
-            <div key={index} className="ml-4 text-amber-600 text-sm mb-1">
-              {line.trim()}
-            </div>
-          );
-        } else if (line.trim() === '') {
+        const trimmedLine = line.trim();
+        
+        // Handle empty lines
+        if (trimmedLine === '') {
           return <br key={index} />;
-        } else {
+        }
+        
+        // Handle bullet points with enhanced styling
+        if (trimmedLine.startsWith('•')) {
+          const content = trimmedLine.substring(1).trim();
           return (
-            <p key={index} className="mb-3 text-amber-700">
-              {line.trim()}
+            <div key={index} className="flex items-start mb-3">
+              <span className="text-amber-500 mr-3 mt-1 text-lg">•</span>
+              <span className="text-amber-700 leading-relaxed">
+                {renderTextWithBold(content)}
+              </span>
+            </div>
+          );
+        }
+        
+        // Handle emoji lines (title lines)
+        if (trimmedLine.includes('🎁') || trimmedLine.includes('✨')) {
+          return (
+            <p key={index} className="mb-4 text-amber-800 font-semibold text-lg leading-relaxed">
+              {renderTextWithBold(trimmedLine)}
             </p>
           );
         }
+        
+        // Handle "What's Inside:" header
+        if (trimmedLine.includes("What's Inside:")) {
+          return (
+            <p key={index} className="mb-3 text-amber-800 font-semibold text-base">
+              {renderTextWithBold(trimmedLine)}
+            </p>
+          );
+        }
+        
+        // Default paragraph
+        return (
+          <p key={index} className="mb-3 text-amber-700 leading-relaxed">
+            {renderTextWithBold(trimmedLine)}
+          </p>
+        );
       });
   };
 
@@ -2014,147 +2057,6 @@ Inside this festive collection, you'll find:
           </DialogContent>
         </Dialog>
 
-        {/* Diwali Gift Box Selection Dialog */}
-        <Dialog open={isDiwaliDialogOpen} onOpenChange={setIsDiwaliDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Customize Your Diwali Gift Box</DialogTitle>
-            </DialogHeader>
-            {pendingProduct && (
-              <div className="space-y-6 py-4">
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold text-amber-800 mb-2">{pendingProduct.name}</h3>
-                  <p className="text-sm text-gray-600 mb-4">Please select your preferred varieties:</p>
-                </div>
-
-                <div className="grid gap-4">
-                  {/* Brownie Selections */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-amber-800">Brownie Varieties (Select 4)</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {['Brownie Variety 1', 'Brownie Variety 2', 'Brownie Variety 3', 'Brownie Variety 4'].map((label, index) => {
-                        const brownieProducts = products.filter(p => 
-                          (p.category?.toLowerCase() === 'brownies' || p.category?.toLowerCase() === 'brownie') && 
-                          p.id !== 'diwali-gift-box-regular' && 
-                          p.id !== 'diwali-gift-box-eggless'
-                        );
-                        return (
-                          <div key={index}>
-                            <Label htmlFor={`brownie${index + 1}`}>{label}</Label>
-                            <select
-                              id={`brownie${index + 1}`}
-                              value={diwaliSelections[`brownie${index + 1}` as keyof typeof diwaliSelections]}
-                              onChange={(e) => setDiwaliSelections(prev => ({
-                                ...prev,
-                                [`brownie${index + 1}`]: e.target.value
-                              }))}
-                              className="w-full px-3 py-2 border border-amber-300 rounded-md bg-white text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            >
-                              <option value="">Select a brownie variety...</option>
-                              {brownieProducts.map((product) => (
-                                <option key={product.id} value={product.name}>
-                                  {product.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Cookie Selections */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-amber-800">Cookie Varieties (Select 2)</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {['Cookie Variety 1', 'Cookie Variety 2'].map((label, index) => {
-                        const cookieProducts = products.filter(p => 
-                          (p.category?.toLowerCase() === 'cookies' || p.category?.toLowerCase() === 'cookie') && 
-                          p.id !== 'diwali-gift-box-regular' && 
-                          p.id !== 'diwali-gift-box-eggless'
-                        );
-                        return (
-                          <div key={index}>
-                            <Label htmlFor={`cookie${index + 1}`}>{label}</Label>
-                            <select
-                              id={`cookie${index + 1}`}
-                              value={diwaliSelections[`cookie${index + 1}` as keyof typeof diwaliSelections]}
-                              onChange={(e) => setDiwaliSelections(prev => ({
-                                ...prev,
-                                [`cookie${index + 1}`]: e.target.value
-                              }))}
-                              className="w-full px-3 py-2 border border-amber-300 rounded-md bg-white text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            >
-                              <option value="">Select a cookie variety...</option>
-                              {cookieProducts.map((product) => (
-                                <option key={product.id} value={product.name}>
-                                  {product.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 justify-end">
-                  <Button variant="outline" onClick={() => {
-                    setIsDiwaliDialogOpen(false);
-                    setDiwaliSelections({
-                      brownie1: '',
-                      brownie2: '',
-                      brownie3: '',
-                      brownie4: '',
-                      cookie1: '',
-                      cookie2: ''
-                    });
-                  }}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => {
-                    if (pendingProduct) {
-                      const id = `${pendingProduct.id}-diwali`;
-                      setCartItems(prev => {
-                        const existing = prev.find(ci => ci.id === id);
-                        let newCartItems;
-                        
-                        if (existing) {
-                          newCartItems = prev.map(ci => ci.id === id ? { ...ci, quantity: ci.quantity + 1 } : ci);
-                        } else {
-                          newCartItems = [...prev, {
-                            id,
-                            name: pendingProduct.name,
-                            price: pendingProduct.selling_price,
-                            quantity: 1,
-                            image: pendingProduct.image || null,
-                            diwaliSelections: { ...diwaliSelections }
-                          }];
-                        }
-                        
-                        // Check and add festive bonus
-                        return checkAndAddFestiveBonus(newCartItems);
-                      });
-                      toast({ title: "Added to cart", description: `${pendingProduct.name} added to cart.` });
-                      setIsDiwaliDialogOpen(false);
-                      setDiwaliSelections({
-                        brownie1: '',
-                        brownie2: '',
-                        brownie3: '',
-                        brownie4: '',
-                        cookie1: '',
-                        cookie2: ''
-                      });
-                    }
-                  }}>
-                    Add to Cart
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </main>
 
       {/* Footer */}
