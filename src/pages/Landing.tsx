@@ -732,68 +732,19 @@ const Landing = () => {
   };
 
   const checkAndAddFestiveBonus = (newCartItems: CartItem[]) => {
-    console.log('=== FESTIVE BONUS FUNCTION CALLED ===');
-    console.log('Input cart items:', newCartItems);
     let updatedItems = [...newCartItems];
 
-    // COOKIE BONUS: Free Triple Choco Bites for cookies > ₹599
-    const cookieItems = updatedItems.filter(item => item.name.toLowerCase().includes('cookie'));
-    const cookiesTotal = cookieItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-    const hasTripleChocolate = updatedItems.some(item => 
-      item.name.toLowerCase().includes('triple choco bites')
-    );
-
-    if (cookiesTotal > 599 && !hasTripleChocolate) {
-      // Find the specific "Triple Choco Bites" product by ID
-      const tripleChocoProduct = products.find(p => 
-        p.id === '4254909f-8eba-4b21-8841-b62a475c0d40' || 
-        p.name.toLowerCase().includes('triple choco bites')
-      );
-      
-      if (tripleChocoProduct) {
-        const freeProduct: CartItem = {
-          id: 'triple-choco-bites-free',
-          name: `${tripleChocoProduct.name} (Free)`,
-          price: 0,
-          quantity: 1,
-          image: tripleChocoProduct.image,
-          selectedWeight: tripleChocoProduct.base_weight,
-          selectedUnit: tripleChocoProduct.weight_unit
-        };
-        
-        toast({ 
-          title: "🎉 Cookie Bonus Added!", 
-          description: `You've earned a free ${tripleChocoProduct.name} for your cookie order!` 
-        });
-        
-        updatedItems = [...updatedItems, freeProduct];
-      }
-    } else if (cookiesTotal <= 599 && hasTripleChocolate) {
-      // Remove free item if cookies total is no longer above 599
-      updatedItems = updatedItems.filter(item => 
-        !item.name.toLowerCase().includes('triple choco bites')
-      );
-      
-      toast({ 
-        title: "Cookie bonus removed", 
-        description: "Cookie order value is below ₹599, free item removed." 
-      });
-    }
 
     // BROWNIE BONUS: Buy 2 Get 1 for brownies and blondies
-    const brownieItems = updatedItems.filter(item => 
-      (item.name.toLowerCase().includes('brownie') || 
-       item.name.toLowerCase().includes('blondie')) && 
-      !item.name.toLowerCase().includes('(free)')
-    );
+    const brownieItems = updatedItems.filter(item => {
+      // Find the original product to check its category
+      const originalProduct = products.find(p => p.id === item.id.split('-')[0]);
+      return originalProduct && originalProduct.category && 
+             (originalProduct.category.toLowerCase().includes('brownie') || 
+              originalProduct.category.toLowerCase().includes('blondie')) &&
+             !item.name.toLowerCase().includes('(free)');
+    });
     
-    console.log('=== BROWNIE BONUS CHECK ===');
-    console.log('All cart items:', updatedItems.map(item => ({ 
-      name: item.name, 
-      hasBrownie: item.name.toLowerCase().includes('brownie'),
-      hasBlondie: item.name.toLowerCase().includes('blondie')
-    })));
-    console.log('Brownie/Blondie items found:', brownieItems);
 
     // Remove existing brownie/blondie bonus items first
     updatedItems = updatedItems.filter(item => 
@@ -803,15 +754,11 @@ const Landing = () => {
 
     // Calculate bonus for each brownie type individually
     brownieItems.forEach(brownieItem => {
-      console.log('Processing brownie item:', brownieItem);
-      
       // Find the original product to get its weight details
       const originalProduct = products.find(p => 
         p.name.toLowerCase().includes(brownieItem.name.toLowerCase().replace(' (regular)', '').replace(' (eggless)', '')) ||
         brownieItem.name.toLowerCase().includes(p.name.toLowerCase())
       );
-
-      console.log('Original product found:', originalProduct);
 
       if (originalProduct) {
         // Calculate total weight purchased for this item
@@ -1423,32 +1370,137 @@ const Landing = () => {
         </div>
       </header>
 
-      {/* Scrolling Banner */}
-      <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white overflow-hidden">
-        <div className="scrolling-banner-wrapper">
-          <div className="scrolling-banner-track">
-            {/* <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us (min order ₹499).
-            </div> */}
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              🚚 Shipping available all across India
+      {/* Diwali Diya Section */}
+      <div className="bg-gradient-to-r from-amber-600 to-orange-600 py-4">
+        <div className="w-full">
+          {/* Mobile: 5 diyas */}
+          <div className="flex sm:hidden justify-between items-center px-4">
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
             </div>
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              💵 Shipping charges as applicable
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
             </div>
-            <div className="scrolling-banner-separator">|</div>
-            {/* <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us (min order ₹499).
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
             </div>
-            <div className="scrolling-banner-separator">|</div> */}
-            <div className="scrolling-banner-item">
-              🚚 Shipping available all across India
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
             </div>
-            <div className="scrolling-banner-separator">|</div>
-            <div className="scrolling-banner-item">
-              💵 Shipping charges as applicable
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+          </div>
+          
+          {/* Tablet: 5 diyas */}
+          <div className="hidden sm:flex lg:hidden justify-between items-center px-6">
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+          </div>
+          
+          {/* Desktop: 7 diyas */}
+          <div className="hidden lg:flex justify-between items-center px-8">
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
+            </div>
+            <div className="diya-image-container">
+              <img 
+                src="/diya.png" 
+                alt="Diya" 
+                className="diya-image"
+              />
             </div>
           </div>
         </div>
