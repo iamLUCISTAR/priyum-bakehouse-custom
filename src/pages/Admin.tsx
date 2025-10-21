@@ -8,12 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Package, Users, BarChart3, Download, LogOut, Upload, X, Tag } from "lucide-react";
+import { Plus, Edit, Trash2, Package, Users, BarChart3, Download, LogOut, Upload, X, Tag, TrendingUp } from "lucide-react";
 
 interface Product {
   id: string;
@@ -158,6 +159,7 @@ export default function Admin() {
   const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategory, setNewCategory] = useState<{ name: string; display_name: string }>({ name: "", display_name: "" });
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const weightUnits = ["grams", "kg", "pieces"];
 
   const formatDate = (dateString: string) => {
@@ -179,6 +181,12 @@ export default function Admin() {
     loadInvoiceSettings();
   }, []);
 
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0].name);
+    }
+  }, [categories, selectedCategory]);
+
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -196,10 +204,15 @@ export default function Admin() {
       if (error) throw error;
       
       // Transform the data to match our interface
-      const transformedData = data?.map(item => ({
-        ...item,
-        weight_options: item.weight_options ? (typeof item.weight_options === 'string' ? JSON.parse(item.weight_options) : item.weight_options) : null
-      })) || [];
+      const transformedData = data?.map(item => {
+        const itemAny = item as any;
+        return {
+          ...item,
+          mrp: itemAny.mrp || item.price || 0,
+          selling_price: itemAny.selling_price || item.price || 0,
+          weight_options: item.weight_options ? (typeof item.weight_options === 'string' ? JSON.parse(item.weight_options) : item.weight_options) : null
+        };
+      }) || [];
       
       setProducts(transformedData);
     } catch (error) {
@@ -372,6 +385,7 @@ export default function Admin() {
           name: newProduct.name,
           mrp: parseFloat(newProduct.mrp),
           selling_price: parseFloat(newProduct.selling_price),
+          price: parseFloat(newProduct.selling_price), // Keep legacy price field
           description: newProduct.description || null,
           image: newProduct.image || null,
           // keep legacy string for now based on selected category_id
@@ -383,7 +397,7 @@ export default function Admin() {
           weight_unit: newProduct.weight_unit || 'grams',
           weight_options: weightOptions.length > 0 ? JSON.stringify(weightOptions) : null,
           site_display: newProduct.site_display
-        }])
+        }] as any)
         .select()
         .single();
 
@@ -410,7 +424,8 @@ export default function Admin() {
 
       setNewProduct({
         name: "",
-        price: "",
+        mrp: "",
+        selling_price: "",
         description: "",
         image: "",
         category: "",
@@ -523,7 +538,8 @@ export default function Admin() {
 
       setNewProduct({
         name: "",
-        price: "",
+        mrp: "",
+        selling_price: "",
         description: "",
         image: "",
         category: "",
@@ -697,6 +713,9 @@ export default function Admin() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [editingOrderItems, setEditingOrderItems] = useState<OrderItem[]>([]);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [showOrders, setShowOrders] = useState(true);
+  const [showRevenue, setShowRevenue] = useState(true);
+  const [hoveredPoint, setHoveredPoint] = useState<{x: number, y: number, data: any, type: 'orders' | 'revenue'} | null>(null);
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings>({
     businessName: "❤️ PRIYUM",
     businessSubtitle: "Cakes & Bakes",
@@ -1177,9 +1196,33 @@ export default function Admin() {
     }
   };
 
-  const generateOrderPDF = async (order: Order, items: OrderItem[]) => {
+  const generateOrderPDFFromTable = async (order: Order) => {
     setIsGeneratingPDF(true);
 
+    try {
+      // Fetch order items for this order
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', order.id);
+
+      if (itemsError) throw itemsError;
+
+      await generateOrderPDF(order, orderItems || []);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF invoice. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+
+  const generateOrderPDF = async (order: Order, items: OrderItem[]) => {
     try {
       // Dynamic import for jsPDF and html2canvas
       const { default: jsPDF } = await import('jspdf');
@@ -1403,26 +1446,55 @@ export default function Admin() {
 
         {/* Main Content */}
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-lg">
+          <TabsList className="grid w-full grid-cols-5 max-w-lg">
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
           </TabsList>
 
           {/* Products Tab */}
           <TabsContent value="products">
-            <Card className="shadow-warm">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Product Management</CardTitle>
-                  <Dialog open={isAddProductOpen} onOpenChange={setIsAddProductOpen}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Product
-                      </Button>
-                    </DialogTrigger>
+            <div className="space-y-6">
+              {/* Category Selection Card */}
+              <Card className="shadow-warm">
+                <CardHeader>
+                  <CardTitle>Choose Category</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="overflow-x-auto">
+                    <div className="inline-flex w-max min-w-full gap-1 h-auto">
+                      {categories.map((category) => (
+                        <button
+                          key={category.id}
+                          onClick={() => setSelectedCategory(category.name)}
+                          className={`text-xs py-2 px-3 whitespace-nowrap flex-shrink-0 rounded-md transition-colors ${
+                            selectedCategory === category.name
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                          }`}
+                        >
+                          {category.display_name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Products Management Card */}
+              <Card className="shadow-warm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Product Management</CardTitle>
+                    <Dialog open={isAddProductOpen} onOpenChange={setIsAddProductOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Product
+                        </Button>
+                      </DialogTrigger>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>Add New Product</DialogTitle>
@@ -1684,139 +1756,132 @@ export default function Admin() {
                   </Dialog>
                 </div>
               </CardHeader>
-              <CardContent>
-                {/* Category Tabs */}
-                {categories.length > 0 && (
-                  <Tabs defaultValue={categories[0]?.name || ''} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 mb-6">
-                      {categories.map((category) => (
-                        <TabsTrigger key={category.id} value={category.name} className="text-sm">
-                          {category.display_name}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
+                <CardContent className="p-6">
+                  {(() => {
+                    const currentCategory = categories.find(cat => cat.name === selectedCategory);
+                    if (!currentCategory) return null;
                     
-                    {categories.map((category) => {
-                      const categoryProducts = products.filter(p => (p.category_id ? p.category_id === category.id : p.category === category.name));
-                      return (
-                        <TabsContent key={category.id} value={category.name}>
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-lg font-semibold">
-                                {category.display_name} Products
-                              </h3>
-                              <Badge variant="outline">
-                                {categoryProducts.length} products
-                              </Badge>
+                    const categoryProducts = products.filter(p => 
+                      (p.category_id ? p.category_id === currentCategory.id : p.category === currentCategory.name)
+                    );
+                    
+                    return (
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between mb-6">
+                          <h4 className="text-xl font-semibold">
+                            {currentCategory.display_name} Products
+                          </h4>
+                          <Badge variant="outline" className="text-sm px-3 py-1">
+                            {categoryProducts.length} products
+                          </Badge>
+                        </div>
+                        
+                        {categoryProducts.length === 0 ? (
+                          <div className="text-center py-12">
+                            <div className="text-muted-foreground">
+                              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                              <p className="text-lg">No products in this category yet.</p>
+                              <p className="text-sm">Add a new product to get started.</p>
                             </div>
-                            {categoryProducts.length === 0 ? (
-                              <div className="text-center py-8">
-                                <div className="text-muted-foreground">
-                                  <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                  <p>No products in this category yet.</p>
-                                  <p className="text-sm">Add a new product to get started.</p>
-                                </div>
-                              </div>
-                            ) : (
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Product</TableHead>
-                                    <TableHead>Price</TableHead>
-                                    <TableHead>Weight Options</TableHead>
-                                    <TableHead>Tags</TableHead>
-                                    <TableHead>Stock</TableHead>
-                                    <TableHead>Actions</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {categoryProducts.map((product) => (
-                                    <TableRow key={product.id}>
-                                      <TableCell>
-                                        <div className="flex items-center space-x-3">
-                                          <img
-                                            src={product.image || "/placeholder.svg"}
-                                            alt={product.name}
-                                            className="w-12 h-12 object-cover rounded-lg"
-                                          />
-                                          <div>
-                                            <p className="font-medium">{product.name}</p>
-                                            <p className="text-sm text-muted-foreground">{product.description}</p>
-                                          </div>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex flex-col">
-                                          <span className="font-bold">₹{product.selling_price}</span>
-                                          {product.mrp > product.selling_price && (
-                                            <span className="text-xs text-muted-foreground line-through">₹{product.mrp}</span>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="text-sm">
-                                          <p>Base: {product.base_weight} {product.weight_unit}</p>
-                                          {product.weight_options && product.weight_options.length > 0 && (
-                                            <p className="text-muted-foreground">
-                                              +{product.weight_options.length} options
-                                            </p>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex flex-wrap gap-1">
-                                          {getProductTags(product.id).map((tag) => (
-                                            <Badge 
-                                              key={tag.id} 
-                                              variant="outline" 
-                                              className="text-xs"
-                                              style={{ 
-                                                borderColor: tag.color, 
-                                                color: tag.color,
-                                                backgroundColor: `${tag.color}10`
-                                              }}
-                                            >
-                                              {tag.name}
-                                            </Badge>
-                                          ))}
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>
-                                        <Badge variant={product.stock > 10 ? "default" : "destructive"}>
-                                          {product.stock} units
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell>
-                                        <div className="flex space-x-2">
-                                          <Button 
-                                            variant="outline" 
-                                            size="sm"
-                                            onClick={() => handleEditProduct(product)}
-                                          >
-                                            <Edit className="w-4 h-4" />
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleDeleteProduct(product.id)}
-                                          >
-                                            <Trash2 className="w-4 h-4" />
-                                          </Button>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            )}
                           </div>
-                        </TabsContent>
-                      );
-                    })}
-                </Tabs>
-                )}
-              </CardContent>
-            </Card>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Price</TableHead>
+                                <TableHead>Weight Options</TableHead>
+                                <TableHead>Tags</TableHead>
+                                <TableHead>Stock</TableHead>
+                                <TableHead>Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {categoryProducts.map((product) => (
+                                <TableRow key={product.id}>
+                                  <TableCell>
+                                    <div className="flex items-center space-x-3">
+                                      <img
+                                        src={product.image || "/placeholder.svg"}
+                                        alt={product.name}
+                                        className="w-12 h-12 object-cover rounded-lg"
+                                      />
+                                      <div>
+                                        <p className="font-medium">{product.name}</p>
+                                        <p className="text-sm text-muted-foreground">{product.description}</p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <span className="font-bold">₹{product.selling_price}</span>
+                                      {product.mrp > product.selling_price && (
+                                        <span className="text-xs text-muted-foreground line-through">₹{product.mrp}</span>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="text-sm">
+                                      <p>Base: {product.base_weight} {product.weight_unit}</p>
+                                      {product.weight_options && product.weight_options.length > 0 && (
+                                        <p className="text-muted-foreground">
+                                          +{product.weight_options.length} options
+                                        </p>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-wrap gap-1">
+                                      {getProductTags(product.id).map((tag) => (
+                                        <Badge 
+                                          key={tag.id} 
+                                          variant="outline" 
+                                          className="text-xs"
+                                          style={{ 
+                                            borderColor: tag.color, 
+                                            color: tag.color,
+                                            backgroundColor: `${tag.color}10`
+                                          }}
+                                        >
+                                          {tag.name}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={product.stock > 10 ? "default" : "destructive"}>
+                                      {product.stock} units
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex space-x-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleEditProduct(product)}
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDeleteProduct(product.id)}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Orders Tab */}
@@ -1835,6 +1900,7 @@ export default function Admin() {
                       <TableHead>Total</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Shipment</TableHead>
+                      <TableHead>Delivery Date</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -1887,6 +1953,15 @@ export default function Admin() {
                              )}
                            </div>
                          </TableCell>
+                         <TableCell>
+                           <div className="text-sm">
+                             {order.delivery_date ? (
+                               <span className="text-foreground">{formatDate(order.delivery_date)}</span>
+                             ) : (
+                               <span className="text-muted-foreground text-xs">Not set</span>
+                             )}
+                           </div>
+                         </TableCell>
                          <TableCell>{formatDate(order.order_date)}</TableCell>
                          <TableCell>
                            <div className="flex space-x-2">
@@ -1907,6 +1982,14 @@ export default function Admin() {
                              <Button
                                variant="outline"
                                size="sm"
+                               onClick={() => generateOrderPDFFromTable(order)}
+                               disabled={isGeneratingPDF}
+                             >
+                               <Download className="w-4 h-4" />
+                             </Button>
+                             <Button
+                               variant="outline"
+                               size="sm"
                                onClick={() => handleDeleteOrder(order.id, order.total)}
                              >
                                <Trash2 className="w-4 h-4" />
@@ -1919,6 +2002,360 @@ export default function Admin() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <div className="space-y-6">
+              {/* Sales Overview Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="shadow-warm">
+                  <CardContent className="p-6">
+                    <div className="flex items-center space-x-2">
+                      <BarChart3 className="w-8 h-8 text-primary" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Revenue</p>
+                        <p className="text-2xl font-bold text-foreground">₹{orders.reduce((sum, order) => sum + order.total, 0)}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="shadow-warm">
+                  <CardContent className="p-6">
+                    <div className="flex items-center space-x-2">
+                      <Package className="w-8 h-8 text-blue-600" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Orders</p>
+                        <p className="text-2xl font-bold text-foreground">{orders.length}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="shadow-warm">
+                  <CardContent className="p-6">
+                    <div className="flex items-center space-x-2">
+                      <Users className="w-8 h-8 text-green-600" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Customers</p>
+                        <p className="text-2xl font-bold text-foreground">{users.length}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="shadow-warm">
+                  <CardContent className="p-6">
+                    <div className="flex items-center space-x-2">
+                      <Package className="w-8 h-8 text-orange-600" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Products</p>
+                        <p className="text-2xl font-bold text-foreground">{products.length}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sales Chart */}
+              <Card className="shadow-warm">
+                <CardHeader>
+                  <CardTitle>Sales Report</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="space-y-6">
+                    {/* Monthly Sales Line Chart */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold">Weekly Trends</h3>
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="show-orders" 
+                              checked={showOrders} 
+                              onCheckedChange={(checked) => setShowOrders(checked === true)}
+                            />
+                            <Label htmlFor="show-orders" className="text-sm">Show Orders</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="show-revenue" 
+                              checked={showRevenue} 
+                              onCheckedChange={(checked) => setShowRevenue(checked === true)}
+                            />
+                            <Label htmlFor="show-revenue" className="text-sm">Show Revenue</Label>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="h-80 bg-muted/20 p-6 rounded-lg relative">
+                        {(() => {
+                          // Group orders by week
+                          const weeklyData = orders.reduce((acc, order) => {
+                            const date = new Date(order.order_date);
+                            const weekStart = new Date(date);
+                            weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+                            const weekKey = weekStart.toISOString().split('T')[0];
+                            const weekName = `Week ${Math.ceil(date.getDate() / 7)} ${date.toLocaleDateString('en-US', { month: 'short' })}`;
+                            
+                            if (!acc[weekKey]) {
+                              acc[weekKey] = {
+                                week: weekName,
+                                orders: 0,
+                                revenue: 0
+                              };
+                            }
+                            acc[weekKey].orders += 1;
+                            acc[weekKey].revenue += order.total;
+                            return acc;
+                          }, {} as Record<string, {week: string, orders: number, revenue: number}>);
+                          
+                          const sortedWeeks = Object.values(weeklyData).sort((a, b) => {
+                            const aDate = new Date(a.week.split(' ')[1] + ' ' + a.week.split(' ')[2]);
+                            const bDate = new Date(b.week.split(' ')[1] + ' ' + b.week.split(' ')[2]);
+                            return aDate.getTime() - bDate.getTime();
+                          });
+                          
+                          if (sortedWeeks.length === 0) {
+                            return (
+                              <div className="flex items-center justify-center h-full text-muted-foreground">
+                                <div className="text-center">
+                                  <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                  <p>No data available</p>
+                                </div>
+                              </div>
+                            );
+                          }
+                          
+                          // Standardize Y-axis with 10,000 increments
+                          const maxOrders = Math.max(...sortedWeeks.map(w => w.orders));
+                          const maxRevenue = Math.max(...sortedWeeks.map(w => w.revenue));
+                          const maxValue = Math.max(maxOrders, maxRevenue);
+                          const yAxisMax = Math.ceil(maxValue / 10000) * 10000;
+                          
+                          // Create SVG line chart with improved spacing
+                          const width = 800; // Increased width for better spacing
+                          const height = 300; // Increased height for better visibility
+                          const padding = 60; // Increased padding
+                          const chartWidth = width - padding * 2;
+                          const chartHeight = height - padding * 2;
+                          
+                          // Calculate minimum spacing between points
+                          const minSpacing = 80; // Minimum 80px between points
+                          const totalSpacing = Math.max(chartWidth, (sortedWeeks.length - 1) * minSpacing);
+                          const pointSpacing = totalSpacing / (sortedWeeks.length - 1);
+                          
+                          const points = sortedWeeks.map((week, index) => {
+                            const x = padding + (index * pointSpacing);
+                            const ordersY = padding + chartHeight - (week.orders / yAxisMax) * chartHeight;
+                            const revenueY = padding + chartHeight - (week.revenue / yAxisMax) * chartHeight;
+                            return { 
+                              x, 
+                              ordersY, 
+                              revenueY, 
+                              week: week.week, 
+                              orders: week.orders, 
+                              revenue: week.revenue 
+                            };
+                          });
+                          
+                          const ordersPath = points.map((point, index) => 
+                            `${index === 0 ? 'M' : 'L'} ${point.x} ${point.ordersY}`
+                          ).join(' ');
+                          
+                          const revenuePath = points.map((point, index) => 
+                            `${index === 0 ? 'M' : 'L'} ${point.x} ${point.revenueY}`
+                          ).join(' ');
+                          
+                          return (
+                            <div className="relative">
+                              <svg width={width} height={height} className="overflow-visible">
+                                {/* Grid lines with standardized Y-axis */}
+                                {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => (
+                                  <g key={index}>
+                                    <line
+                                      x1={padding}
+                                      y1={padding + ratio * chartHeight}
+                                      x2={padding + totalSpacing}
+                                      y2={padding + ratio * chartHeight}
+                                      stroke="currentColor"
+                                      strokeWidth="1"
+                                      opacity="0.1"
+                                    />
+                                    <text
+                                      x={padding - 10}
+                                      y={padding + ratio * chartHeight + 4}
+                                      fontSize="10"
+                                      fill="currentColor"
+                                      opacity="0.6"
+                                      textAnchor="end"
+                                    >
+                                      {Math.round(yAxisMax * (1 - ratio)).toLocaleString()}
+                                    </text>
+                                  </g>
+                                ))}
+                                
+                                {/* X-axis labels */}
+                                {points.map((point, index) => (
+                                  <text
+                                    key={index}
+                                    x={point.x}
+                                    y={height - 10}
+                                    fontSize="10"
+                                    fill="currentColor"
+                                    opacity="0.6"
+                                    textAnchor="middle"
+                                  >
+                                    {point.week}
+                                  </text>
+                                ))}
+                                
+                                {/* Orders line */}
+                                {showOrders && (
+                                  <g>
+                                    <path
+                                      d={ordersPath}
+                                      fill="none"
+                                      stroke="#3b82f6"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                    {points.map((point, index) => (
+                                      <circle
+                                        key={`orders-${index}`}
+                                        cx={point.x}
+                                        cy={point.ordersY}
+                                        r="6"
+                                        fill="#3b82f6"
+                                        className="cursor-pointer transition-all hover:r-8"
+                                        onMouseEnter={() => setHoveredPoint({
+                                          x: point.x,
+                                          y: point.ordersY,
+                                          data: { week: point.week, value: point.orders },
+                                          type: 'orders'
+                                        })}
+                                        onMouseLeave={() => setHoveredPoint(null)}
+                                      />
+                                    ))}
+                                  </g>
+                                )}
+                                
+                                {/* Revenue line */}
+                                {showRevenue && (
+                                  <g>
+                                    <path
+                                      d={revenuePath}
+                                      fill="none"
+                                      stroke="#10b981"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                    {points.map((point, index) => (
+                                      <circle
+                                        key={`revenue-${index}`}
+                                        cx={point.x}
+                                        cy={point.revenueY}
+                                        r="6"
+                                        fill="#10b981"
+                                        className="cursor-pointer transition-all hover:r-8"
+                                        onMouseEnter={() => setHoveredPoint({
+                                          x: point.x,
+                                          y: point.revenueY,
+                                          data: { week: point.week, value: point.revenue },
+                                          type: 'revenue'
+                                        })}
+                                        onMouseLeave={() => setHoveredPoint(null)}
+                                      />
+                                    ))}
+                                  </g>
+                                )}
+                              </svg>
+                              
+                              {/* Hover Tooltip */}
+                              {hoveredPoint && (
+                                <div 
+                                  className="absolute bg-background border border-border rounded-lg shadow-lg p-3 z-10 pointer-events-none"
+                                  style={{
+                                    left: `${hoveredPoint.x - 60}px`,
+                                    top: `${hoveredPoint.y - 60}px`,
+                                    transform: 'translateX(-50%)'
+                                  }}
+                                >
+                                  <div className="text-sm font-medium">
+                                    {hoveredPoint.data.week}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {hoveredPoint.type === 'orders' ? 'Orders' : 'Revenue'}
+                                  </div>
+                                  <div className="text-lg font-bold">
+                                    {hoveredPoint.type === 'orders' 
+                                      ? hoveredPoint.data.value 
+                                      : `₹${hoveredPoint.data.value.toLocaleString()}`
+                                    }
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Legend */}
+                              <div className="flex items-center justify-center space-x-6 mt-4">
+                                {showOrders && (
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span className="text-sm text-muted-foreground">Orders</span>
+                                  </div>
+                                )}
+                                {showRevenue && (
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                                    <span className="text-sm text-muted-foreground">Revenue (₹)</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Order Status Distribution */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Order Status Distribution</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {(() => {
+                          const statusCounts = orders.reduce((acc, order) => {
+                            acc[order.status] = (acc[order.status] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>);
+                          
+                          const statusColors = {
+                            pending: 'bg-yellow-500',
+                            preparing: 'bg-blue-500',
+                            ready: 'bg-green-500',
+                            shipped: 'bg-purple-500',
+                            delivered: 'bg-emerald-500',
+                            cancelled: 'bg-red-500'
+                          };
+                          
+                          return Object.entries(statusCounts).map(([status, count]) => (
+                            <div key={status} className="flex items-center space-x-3 p-3 bg-background rounded-lg border">
+                              <div className={`w-4 h-4 rounded-full ${statusColors[status as keyof typeof statusColors] || 'bg-gray-500'}`} />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium capitalize">{status}</p>
+                                <p className="text-xs text-muted-foreground">{count} orders</p>
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Users Tab */}
@@ -2359,7 +2796,7 @@ export default function Admin() {
               <div className="col-span-2">
                 <div className="flex items-center justify-between mb-2">
                   <Label>Weight & Price Options</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setEditWeightOptions([...editWeightOptions, { weight: 0, price: 0, unit: newProduct.weight_unit }])}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setEditWeightOptions([...editWeightOptions, { weight: 0, mrp: 0, selling_price: 0, unit: newProduct.weight_unit }])}>
                     <Plus className="w-4 h-4 mr-1" />
                     Add Option
                   </Button>

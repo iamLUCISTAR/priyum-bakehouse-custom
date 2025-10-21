@@ -155,6 +155,7 @@ const Index = () => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [discount, setDiscount] = useState<number>(0);
   const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>(categories[0]?.name || "cookies");
 
   useEffect(() => {
     checkAuth();
@@ -162,6 +163,12 @@ const Index = () => {
     loadInvoiceSettings();
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0].name);
+    }
+  }, [categories, selectedCategory]);
 
   const loadInvoiceSettings = async () => {
     try {
@@ -263,7 +270,6 @@ const Index = () => {
       const { data, error } = await supabase
         .from('products' as any)
         .select('*')
-        .eq('site_display', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -304,7 +310,6 @@ const Index = () => {
       const { data: productsData, error: productsError } = await supabase
         .from('products' as any)
         .select('category_id, category')
-        .eq('site_display', true);
       
       if (productsError) throw productsError;
       
@@ -840,103 +845,114 @@ const Index = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
           {/* Products Selection */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
+            {/* Category Selection Card */}
+            <Card className="shadow-warm">
+              <CardHeader>
+                <CardTitle>Choose Category</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="overflow-x-auto">
+                  <div className="inline-flex w-max min-w-full gap-1 h-auto">
+                    {categories.map((category) => (
+                      <button
+                        key={category.id}
+                        onClick={() => setSelectedCategory(category.name)}
+                        className={`text-xs py-2 px-3 whitespace-nowrap flex-shrink-0 rounded-md transition-colors ${
+                          selectedCategory === category.name
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                        }`}
+                      >
+                        {category.display_name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Products Content Card */}
             <Card className="shadow-warm">
               <CardHeader>
                 <CardTitle>Select Products</CardTitle>
               </CardHeader>
-              <CardContent>
-                {/* Category Tabs */}
-                <Tabs defaultValue={categories[0]?.name || "cookies"} className="w-full">
-                  <TabsList className="grid w-full mb-4" style={{ gridTemplateColumns: `repeat(${Math.min(categories.length, 4)}, 1fr)` }}>
-                    {categories.map((category) => (
-                      <TabsTrigger key={category.id} value={category.name} className="text-xs">
-                        {category.display_name}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+              <CardContent className="p-6">
+                {(() => {
+                  const currentCategory = categories.find(cat => cat.name === selectedCategory);
+                  if (!currentCategory) return null;
                   
-                  {categories.map((category) => (
-                    <TabsContent key={category.id} value={category.name}>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-semibold">
-                            {category.display_name}
-                          </h4>
-                          <Badge variant="outline" className="text-xs">
-                            {products.filter(p => 
-                              p.category === category.name || 
-                              (p as any).category_id === category.id
-                            ).length} products
-                          </Badge>
+                  const categoryProducts = products.filter(p => 
+                    p.category === currentCategory.name || 
+                    (p as any).category_id === currentCategory.id
+                  );
+                  
+                  return (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h4 className="text-xl font-semibold">
+                          {currentCategory.display_name}
+                        </h4>
+                        <Badge variant="outline" className="text-sm px-3 py-1">
+                          {categoryProducts.length} products
+                        </Badge>
+                      </div>
+                      
+                      {categoryProducts.length === 0 ? (
+                        <div className="text-center py-12">
+                          <div className="text-muted-foreground">
+                            <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p className="text-lg">No products in this category</p>
+                            <p className="text-sm">Check back later for new items!</p>
+                          </div>
                         </div>
-                        
-                        {(() => {
-                          const categoryProducts = products.filter(p => 
-                            p.category === category.name || 
-                            (p as any).category_id === category.id
-                          );
-                          
-                          if (categoryProducts.length === 0) {
-                            return (
-                              <div className="text-center py-6">
-                                <div className="text-muted-foreground">
-                                  <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                  <p className="text-sm">No products in this category</p>
-                                </div>
-                              </div>
-                            );
-                          }
-                          
-                          return (
-                            <div className="space-y-3">
-                              {categoryProducts.map((product) => (
-                                <div key={product.id} className="flex items-center space-x-3 p-3 bg-background rounded-lg border">
-                                  <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    className="w-16 h-16 object-cover rounded-lg"
-                                  />
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-foreground text-sm">{product.name}</h4>
-                                    <p className="text-xs text-muted-foreground">{product.description}</p>
+                      ) : (
+                        <div className="space-y-6">
+                          {categoryProducts.map((product) => (
+                            <div key={product.id} className="flex items-start space-x-4 p-6 bg-background rounded-lg border shadow-sm hover:shadow-md transition-shadow">
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                className="w-16 h-16 object-cover rounded-lg"
+                              />
+                              <div className="flex-1 space-y-2">
+                                <h4 className="font-medium text-foreground text-sm">{product.name}</h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed">{product.description}</p>
+                                <div className="flex items-center gap-3 pt-1">
+                                  <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
-                                      <div className="flex flex-col">
-                                        <div className="flex items-center gap-2">
-                                          <p className="text-sm font-bold text-primary">₹{product.selling_price}</p>
-                                          {product.mrp > product.selling_price && (
-                                            <p className="text-xs text-muted-foreground line-through">₹{product.mrp}</p>
-                                          )}
-                                        </div>
-                                        {product.mrp > product.selling_price && (
-                                          <p className="text-xs text-green-600 font-medium">
-                                            Save ₹{product.mrp - product.selling_price}
-                                          </p>
-                                        )}
-                                      </div>
-                                      {Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          {product.weight_options.length} sizes
-                                        </Badge>
+                                      <p className="text-sm font-bold text-primary">₹{product.selling_price}</p>
+                                      {product.mrp > product.selling_price && (
+                                        <p className="text-xs text-muted-foreground line-through">₹{product.mrp}</p>
                                       )}
                                     </div>
+                                    {product.mrp > product.selling_price && (
+                                      <p className="text-xs text-green-600 font-medium">
+                                        Save ₹{product.mrp - product.selling_price}
+                                      </p>
+                                    )}
                                   </div>
-                                  <Button
-                                    onClick={() => handleSelectWeight(product)}
-                                    size="sm"
-                                    variant="outline"
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                  </Button>
+                                  {Array.isArray(product.weight_options) && product.weight_options.length > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {product.weight_options.length} sizes
+                                    </Badge>
+                                  )}
                                 </div>
-                              ))}
+                              </div>
+                              <Button
+                                onClick={() => handleSelectWeight(product)}
+                                size="sm"
+                                variant="outline"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </Button>
                             </div>
-                          );
-                        })()}
-                      </div>
-                    </TabsContent>
-                  ))}
-                </Tabs>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

@@ -1049,7 +1049,7 @@ const Landing = () => {
         <div className="scrolling-banner-wrapper">
           <div className="scrolling-banner-track">
             <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us (min order ₹499).
+              🎉 Our new range of desserts are here! Check them out now.
             </div>
             <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
@@ -1061,7 +1061,7 @@ const Landing = () => {
             </div>
             <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
-              🎉 Flat 10% off on your first order with us (min order ₹499).
+              🎉 Our new range of desserts are here! Check them out now.
             </div>
             <div className="scrolling-banner-separator">|</div>
             <div className="scrolling-banner-item">
