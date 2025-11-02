@@ -156,9 +156,16 @@ export default function Admin() {
     address: ""
   });
 
-  const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string; display_name: string; base_category_id?: string | null }[]>([]);
+  const [baseCategories, setBaseCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
-  const [newCategory, setNewCategory] = useState<{ name: string; display_name: string }>({ name: "", display_name: "" });
+  const [isEditCategoryOpen, setIsEditCategoryOpen] = useState(false);
+  const [isAddBaseCategoryOpen, setIsAddBaseCategoryOpen] = useState(false);
+  const [isEditBaseCategoryOpen, setIsEditBaseCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string; display_name: string; base_category_id?: string | null } | null>(null);
+  const [editingBaseCategory, setEditingBaseCategory] = useState<{ id: string; name: string; display_name: string } | null>(null);
+  const [newCategory, setNewCategory] = useState<{ name: string; display_name: string; base_category_id: string }>({ name: "", display_name: "", base_category_id: "" });
+  const [newBaseCategory, setNewBaseCategory] = useState<{ name: string; display_name: string }>({ name: "", display_name: "" });
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const weightUnits = ["grams", "kg", "pieces"];
 
@@ -178,6 +185,7 @@ export default function Admin() {
     fetchTags();
     fetchProductTags();
     fetchCategories();
+    fetchBaseCategories();
     loadInvoiceSettings();
   }, []);
 
@@ -282,7 +290,7 @@ export default function Admin() {
     try {
       const { data, error } = await supabase
         .from('categories' as any)
-        .select('id, name, display_name')
+        .select('id, name, display_name, base_category_id')
         .order('display_name', { ascending: true });
       if (error) throw error;
       setCategories((data as any) || []);
@@ -290,6 +298,23 @@ export default function Admin() {
       toast({
         title: "Error",
         description: "Failed to fetch categories",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchBaseCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('base_categories' as any)
+        .select('id, name, display_name')
+        .order('display_name', { ascending: true });
+      if (error) throw error;
+      setBaseCategories((data as any) || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch base categories",
         variant: "destructive",
       });
     }
@@ -1071,6 +1096,200 @@ export default function Admin() {
     }
   };
 
+  // Base Category Handlers
+  const handleAddBaseCategory = async () => {
+    if (!newBaseCategory.name || !newBaseCategory.display_name) {
+      toast({
+        title: "Invalid Base Category",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('base_categories' as any)
+        .insert({ name: newBaseCategory.name, display_name: newBaseCategory.display_name });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Base category added successfully",
+      });
+
+      setNewBaseCategory({ name: "", display_name: "" });
+      setIsAddBaseCategoryOpen(false);
+      fetchBaseCategories();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add base category",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditBaseCategory = (baseCategory: { id: string; name: string; display_name: string }) => {
+    setEditingBaseCategory(baseCategory);
+    setNewBaseCategory({ name: baseCategory.name, display_name: baseCategory.display_name });
+    setIsEditBaseCategoryOpen(true);
+  };
+
+  const handleUpdateBaseCategory = async () => {
+    if (!editingBaseCategory || !newBaseCategory.name || !newBaseCategory.display_name) {
+      toast({
+        title: "Invalid Base Category",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('base_categories' as any)
+        .update({ name: newBaseCategory.name, display_name: newBaseCategory.display_name })
+        .eq('id', editingBaseCategory.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Base category updated successfully",
+      });
+
+      setNewBaseCategory({ name: "", display_name: "" });
+      setEditingBaseCategory(null);
+      setIsEditBaseCategoryOpen(false);
+      fetchBaseCategories();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update base category",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteBaseCategory = async (baseCategoryId: string) => {
+    if (!confirm('Are you sure you want to delete this base category? Categories linked to it will have their link removed.')) {
+      return;
+    }
+
+    try {
+      // First, remove base_category_id from all categories linked to this base category
+      await supabase
+        .from('categories' as any)
+        .update({ base_category_id: null })
+        .eq('base_category_id', baseCategoryId);
+
+      // Then delete the base category
+      const { error } = await supabase
+        .from('base_categories' as any)
+        .delete()
+        .eq('id', baseCategoryId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Base category deleted successfully",
+      });
+      fetchBaseCategories();
+      fetchCategories();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete base category",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Category Handlers
+  const handleEditCategory = (category: { id: string; name: string; display_name: string; base_category_id?: string | null }) => {
+    setEditingCategory(category);
+    setNewCategory({ name: category.name, display_name: category.display_name, base_category_id: category.base_category_id || "" });
+    setIsEditCategoryOpen(true);
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editingCategory || !newCategory.name || !newCategory.display_name) {
+      toast({
+        title: "Invalid Category",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('categories' as any)
+        .update({ 
+          name: newCategory.name, 
+          display_name: newCategory.display_name,
+          base_category_id: newCategory.base_category_id || null
+        })
+        .eq('id', editingCategory.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category updated successfully",
+      });
+
+      setNewCategory({ name: "", display_name: "", base_category_id: "" });
+      setEditingCategory(null);
+      setIsEditCategoryOpen(false);
+      fetchCategories();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update category",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!confirm('Are you sure you want to delete this category? Products linked to it will have their category removed.')) {
+      return;
+    }
+
+    try {
+      // First, remove category_id from all products linked to this category
+      await (supabase as any)
+        .from('products')
+        .update({ category_id: null })
+        .eq('category_id', categoryId);
+
+      // Then delete the category
+      const { error } = await supabase
+        .from('categories' as any)
+        .delete()
+        .eq('id', categoryId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category deleted successfully",
+      });
+      fetchCategories();
+      fetchProducts();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete category",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Helper function to get tags for a product
   const getProductTags = (productId: string) => {
     const productTagIds = productTags
@@ -1446,12 +1665,13 @@ export default function Admin() {
 
         {/* Main Content */}
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 max-w-lg">
+          <TabsList className="grid w-full grid-cols-6 max-w-2xl">
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
+            <TabsTrigger value="categories">Categories</TabsTrigger>
           </TabsList>
 
           {/* Products Tab */}
@@ -2604,6 +2824,236 @@ export default function Admin() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Categories Tab */}
+          <TabsContent value="categories">
+            <div className="space-y-6">
+              {/* Base Categories Section */}
+              <Card className="shadow-warm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Base Categories</CardTitle>
+                    <Dialog open={isAddBaseCategoryOpen} onOpenChange={setIsAddBaseCategoryOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Base Category
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>Add Base Category</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-3 py-2">
+                          <div>
+                            <Label htmlFor="baseCatName">System Name</Label>
+                            <Input 
+                              id="baseCatName" 
+                              value={newBaseCategory.name} 
+                              onChange={(e) => setNewBaseCategory(prev => ({ ...prev, name: e.target.value }))} 
+                              placeholder="e.g. baked-goods" 
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="baseCatDisplay">Display Name</Label>
+                            <Input 
+                              id="baseCatDisplay" 
+                              value={newBaseCategory.display_name} 
+                              onChange={(e) => setNewBaseCategory(prev => ({ ...prev, display_name: e.target.value }))} 
+                              placeholder="e.g. Baked Goods" 
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsAddBaseCategoryOpen(false)}>Cancel</Button>
+                          <Button onClick={handleAddBaseCategory}>Add</Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Display Name</TableHead>
+                        <TableHead>System Name</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {baseCategories.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-muted-foreground">
+                            No base categories found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        baseCategories.map((baseCategory) => (
+                          <TableRow key={baseCategory.id}>
+                            <TableCell className="font-medium">{baseCategory.display_name}</TableCell>
+                            <TableCell className="text-muted-foreground">{baseCategory.name}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => handleEditBaseCategory(baseCategory)}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => handleDeleteBaseCategory(baseCategory.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Categories Section */}
+              <Card className="shadow-warm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Categories</CardTitle>
+                    <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Category
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>Add Category</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-3 py-2">
+                          <div>
+                            <Label htmlFor="catName">System Name</Label>
+                            <Input 
+                              id="catName" 
+                              value={newCategory.name} 
+                              onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))} 
+                              placeholder="e.g. brownies" 
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="catDisplay">Display Name</Label>
+                            <Input 
+                              id="catDisplay" 
+                              value={newCategory.display_name} 
+                              onChange={(e) => setNewCategory(prev => ({ ...prev, display_name: e.target.value }))} 
+                              placeholder="e.g. Brownies" 
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="catBaseCategory">Base Category</Label>
+                            <Select 
+                              value={newCategory.base_category_id || "none"} 
+                              onValueChange={(value) => setNewCategory(prev => ({ ...prev, base_category_id: value === "none" ? "" : value }))}
+                            >
+                              <SelectTrigger id="catBaseCategory">
+                                <SelectValue placeholder="Select a base category (optional)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {baseCategories.map((baseCat) => (
+                                  <SelectItem key={baseCat.id} value={baseCat.id}>
+                                    {baseCat.display_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsAddCategoryOpen(false)}>Cancel</Button>
+                          <Button onClick={async () => {
+                            if (!newCategory.name || !newCategory.display_name) return;
+                            const { data: cat, error } = await supabase
+                              .from('categories' as any)
+                              .insert({ 
+                                name: newCategory.name, 
+                                display_name: newCategory.display_name,
+                                base_category_id: newCategory.base_category_id || null
+                              })
+                              .select('id, name, display_name')
+                              .single();
+                            if (!error && cat) {
+                              setIsAddCategoryOpen(false);
+                              setNewCategory({ name: "", display_name: "", base_category_id: "" });
+                              await fetchCategories();
+                              toast({ title: 'Category added' });
+                            } else {
+                              toast({ title: 'Error', description: 'Failed to add category', variant: 'destructive' });
+                            }
+                          }}>Add</Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Display Name</TableHead>
+                        <TableHead>System Name</TableHead>
+                        <TableHead>Base Category</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categories.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            No categories found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        categories.map((category) => {
+                          const baseCategory = baseCategories.find(bc => bc.id === category.base_category_id);
+                          return (
+                            <TableRow key={category.id}>
+                              <TableCell className="font-medium">{category.display_name}</TableCell>
+                              <TableCell className="text-muted-foreground">{category.name}</TableCell>
+                              <TableCell>{baseCategory ? baseCategory.display_name : <span className="text-muted-foreground">None</span>}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => handleEditCategory(category)}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => handleDeleteCategory(category.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* Edit Product Dialog */}
@@ -3017,13 +3467,98 @@ export default function Admin() {
                   const created = cat as any;
                   setNewProduct(prev => ({ ...prev, category_id: created.id, category: created.name }));
                   setIsAddCategoryOpen(false);
-                  setNewCategory({ name: '', display_name: '' });
+                  setNewCategory({ name: '', display_name: '', base_category_id: '' });
                   await fetchCategories();
                   toast({ title: 'Category added' });
                 } else {
                   toast({ title: 'Error', description: 'Failed to add category', variant: 'destructive' });
                 }
               }}>Add</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Base Category Dialog */}
+        <Dialog open={isEditBaseCategoryOpen} onOpenChange={setIsEditBaseCategoryOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Base Category</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-3 py-2">
+              <div>
+                <Label htmlFor="editBaseCatName">System Name</Label>
+                <Input 
+                  id="editBaseCatName" 
+                  value={newBaseCategory.name} 
+                  onChange={(e) => setNewBaseCategory(prev => ({ ...prev, name: e.target.value }))} 
+                  placeholder="e.g. baked-goods" 
+                />
+              </div>
+              <div>
+                <Label htmlFor="editBaseCatDisplay">Display Name</Label>
+                <Input 
+                  id="editBaseCatDisplay" 
+                  value={newBaseCategory.display_name} 
+                  onChange={(e) => setNewBaseCategory(prev => ({ ...prev, display_name: e.target.value }))} 
+                  placeholder="e.g. Baked Goods" 
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditBaseCategoryOpen(false)}>Cancel</Button>
+              <Button onClick={handleUpdateBaseCategory}>Update</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Category Dialog */}
+        <Dialog open={isEditCategoryOpen} onOpenChange={setIsEditCategoryOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Category</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-3 py-2">
+              <div>
+                <Label htmlFor="editCatName">System Name</Label>
+                <Input 
+                  id="editCatName" 
+                  value={newCategory.name} 
+                  onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))} 
+                  placeholder="e.g. brownies" 
+                />
+              </div>
+              <div>
+                <Label htmlFor="editCatDisplay">Display Name</Label>
+                <Input 
+                  id="editCatDisplay" 
+                  value={newCategory.display_name} 
+                  onChange={(e) => setNewCategory(prev => ({ ...prev, display_name: e.target.value }))} 
+                  placeholder="e.g. Brownies" 
+                />
+              </div>
+              <div>
+                <Label htmlFor="editCatBaseCategory">Base Category</Label>
+                <Select 
+                  value={newCategory.base_category_id || "none"} 
+                  onValueChange={(value) => setNewCategory(prev => ({ ...prev, base_category_id: value === "none" ? "" : value }))}
+                >
+                  <SelectTrigger id="editCatBaseCategory">
+                    <SelectValue placeholder="Select a base category (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {baseCategories.map((baseCat) => (
+                      <SelectItem key={baseCat.id} value={baseCat.id}>
+                        {baseCat.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditCategoryOpen(false)}>Cancel</Button>
+              <Button onClick={handleUpdateCategory}>Update</Button>
             </div>
           </DialogContent>
         </Dialog>
