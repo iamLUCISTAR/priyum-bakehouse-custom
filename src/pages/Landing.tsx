@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { Phone, Mail, Instagram, Heart, X, Menu, Star, ShoppingBag, Clock, MapPin, Tag, ShoppingCart, Trash2 } from "lucide-react";
+import { Phone, Mail, Instagram, Heart, X, Menu, Star, ShoppingBag, Clock, MapPin, Tag, ShoppingCart, Trash2, ChevronDown } from "lucide-react";
 import ProductQuickView from "@/components/ProductQuickView";
 import MobileSearchFilter from "@/components/MobileSearchFilter";
 // import type { Database } from "@/integrations/supabase/types";
@@ -16,6 +16,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu";
+import { useIsMobile } from "@/hooks/use-mobile";
 // Removed custom calendar popover; using native date input
 
 type Product = {
@@ -65,6 +74,7 @@ interface CartItem {
 }
 
 const Landing = () => {
+  const isMobile = useIsMobile();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [contactInfo, setContactInfo] = useState<InvoiceSettings | null>(null);
@@ -75,9 +85,11 @@ const Landing = () => {
   const [selectedProductTags, setSelectedProductTags] = useState<Tag[]>([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("Cookies");
+  const [selectedBaseCategory, setSelectedBaseCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categories, setCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
+  const [baseCategories, setBaseCategories] = useState<{ id: string; name: string; display_name: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string; display_name: string; base_category_id?: string | null }[]>([]);
   const [filters, setFilters] = useState<FilterOptions>({
     priceRange: "all",
     sortBy: "name",
@@ -87,10 +99,12 @@ const Landing = () => {
   const [orderStatusResult, setOrderStatusResult] = useState<any>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [openBaseCategoryDropdown, setOpenBaseCategoryDropdown] = useState<string | null>(null);
   const { toast } = useToast();
   const switchingCategoryRef = useRef(false);
-  const [previousCategory, setPreviousCategory] = useState("Cookies");
+  const [previousCategory, setPreviousCategory] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const navigationMenuRefs = useRef<Record<string, HTMLElement>>({});
 
   // GSAP-based loader animation (complex but easy to implement)
   const loaderRef = useRef<HTMLDivElement | null>(null);
@@ -183,17 +197,102 @@ const Landing = () => {
 
   useEffect(() => {
     filterAndSortProducts();
-  }, [products, selectedCategory, searchQuery, filters, categories]);
+  }, [products, selectedCategory, selectedBaseCategory, searchQuery, filters, categories, baseCategories]);
 
-  // Set initial category when categories are loaded
-  useEffect(() => {
-    if (categories.length > 0 && selectedCategory === "Cookies") {
-      setSelectedCategory(categories[0].display_name);
+  // Handle base category change
+  const handleBaseCategoryChange = (baseCategoryId: string) => {
+    if (baseCategoryId === selectedBaseCategory) return;
+    
+    const previousCategory = selectedCategory;
+    setSelectedBaseCategory(baseCategoryId);
+    
+    // Auto-select first category of the base category and show its products
+    const baseCategoryCats = categories.filter(cat => cat.base_category_id === baseCategoryId);
+    if (baseCategoryCats.length > 0) {
+      const firstCategory = baseCategoryCats[0];
+      
+      // Set the category immediately to show products
+      setPreviousCategory(previousCategory);
+      setSelectedCategory(firstCategory.id);
+      
+      // Trigger transition animation
+      setIsTransitioning(true);
+      switchingCategoryRef.current = true;
+      
+      setTimeout(() => {
+        setIsTransitioning(false);
+        switchingCategoryRef.current = false;
+      }, 200);
+    } else {
+      setSelectedCategory(null);
     }
-  }, [categories]);
+  };
 
-  const handleCategoryChange = (category: string) => {
-    if (category === selectedCategory || isTransitioning) return;
+  // Handle mobile click behavior: first click shows dropdown, second click shows products
+  const handleMobileBaseCategoryClick = (baseCategoryId: string, e: React.MouseEvent) => {
+    if (!isMobile) {
+      // Desktop: single click selects category
+      e.preventDefault();
+      e.stopPropagation();
+      handleBaseCategoryChange(baseCategoryId);
+      return;
+    }
+
+    // Check if dropdown is already open by checking data-state attribute
+    const triggerElement = e.currentTarget as HTMLElement;
+    const isDropdownOpen = triggerElement.getAttribute('data-state') === 'open' || 
+                          openBaseCategoryDropdown === baseCategoryId;
+
+    if (isDropdownOpen) {
+      // Second click: dropdown is open, close it and show products
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Close dropdown
+      setOpenBaseCategoryDropdown(null);
+      
+      // Force select base category and show first category's products
+      const previousCategory = selectedCategory;
+      setSelectedBaseCategory(baseCategoryId);
+      
+      // Auto-select first category of the base category and show its products
+      const baseCategoryCats = categories.filter(cat => cat.base_category_id === baseCategoryId);
+      if (baseCategoryCats.length > 0) {
+        const firstCategory = baseCategoryCats[0];
+        
+        // Set the category immediately to show products
+        setPreviousCategory(previousCategory);
+        setSelectedCategory(firstCategory.id);
+        
+        // Trigger transition animation
+        setIsTransitioning(true);
+        switchingCategoryRef.current = true;
+        
+        setTimeout(() => {
+          setIsTransitioning(false);
+          switchingCategoryRef.current = false;
+        }, 200);
+      } else {
+        setSelectedCategory(null);
+      }
+    } else {
+      // First click: let dropdown open and track which one is open
+      setOpenBaseCategoryDropdown(baseCategoryId);
+      // Use setTimeout to check after NavigationMenu updates the state
+      setTimeout(() => {
+        const currentState = triggerElement.getAttribute('data-state');
+        if (currentState !== 'open') {
+          // Dropdown didn't open, reset tracking
+          setOpenBaseCategoryDropdown(null);
+        }
+      }, 100);
+      // Don't prevent default - let NavigationMenu handle opening the dropdown
+    }
+  };
+
+  // Handle category change
+  const handleCategoryChange = (categoryId: string | null) => {
+    if (categoryId === selectedCategory || isTransitioning) return;
     
     setIsTransitioning(true);
     switchingCategoryRef.current = true;
@@ -201,7 +300,7 @@ const Landing = () => {
     // Start the transition
     setTimeout(() => {
       setPreviousCategory(selectedCategory);
-      setSelectedCategory(category);
+      setSelectedCategory(categoryId);
       
       // End the transition after content has updated
       setTimeout(() => {
@@ -211,8 +310,22 @@ const Landing = () => {
     }, 50);
   };
 
-  const renderCategoryContent = (category: string) => {
-    const categoryProducts = groupedProducts[category] || [];
+  const renderCategoryContent = (categoryId: string | null) => {
+    if (!categoryId) {
+      return (
+        <div className="text-center py-16">
+          <div className="bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-2xl p-8 sm:p-12 max-w-lg mx-auto shadow-lg backdrop-blur-sm border border-amber-200/50">
+            <div className="text-6xl sm:text-8xl mb-6 animate-bounce">🔜</div>
+            <h3 className="text-2xl sm:text-3xl font-bold text-amber-800 mb-4">Select a Category</h3>
+            <p className="text-base sm:text-lg text-amber-700">Please select a category to view products</p>
+          </div>
+        </div>
+      );
+    }
+    const categoryProducts = filteredProducts.filter(p => {
+      const productCategoryId = (p as any).category_id;
+      return productCategoryId === categoryId;
+    });
     
     // Don't show "Coming Soon" if we're currently filtering, switching category, or still loading
     if (categoryProducts.length === 0 && !isFiltering && !loading && !switchingCategoryRef.current) {
@@ -228,7 +341,7 @@ const Landing = () => {
             <p className="text-base sm:text-lg text-amber-700">
               {searchQuery 
                 ? `No products found matching "${searchQuery}"`
-                : `Delicious ${category.toLowerCase()} are on their way!`
+                : "Delicious products are on their way!"
               }
             </p>
           </div>
@@ -358,28 +471,66 @@ const Landing = () => {
 
   const loadData = async () => {
     try {
-      // Load categories first - only those that have products with site_display = true
+      // Load base categories first
+      const { data: baseCategoriesData, error: baseCategoriesError } = await supabase
+        .from('base_categories' as any)
+        .select('id, name, display_name')
+        .order('display_name', { ascending: true });
+      
+      if (baseCategoriesError) {
+        console.error('Error loading base categories:', baseCategoriesError);
+      } else if (baseCategoriesData) {
+        const baseCats = (baseCategoriesData as any[]) || [];
+        setBaseCategories(baseCats);
+      }
+
+      // Load categories - only those that have products with site_display = true
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories' as any)
         .select(`
           id, 
           name, 
           display_name,
-          products!category_id (
-            id
-          )
+          base_category_id
         `)
-        .eq('products.site_display', true)
         .order('display_name', { ascending: true });
       
       if (categoriesError) {
         console.error('Error loading categories:', categoriesError);
       } else if (categoriesData) {
-        // Filter out categories that don't have any visible products
-        const categoriesWithProducts = (categoriesData as any)?.filter((category: any) => 
-          category.products && category.products.length > 0
+        // Now filter categories that have products with site_display = true
+        const productIdsWithSiteDisplay = new Set<string>();
+        const { data: productsData } = await (supabase as any)
+          .from('products')
+          .select('id, category_id')
+          .eq('site_display', true);
+        
+        if (productsData) {
+          (productsData as any[]).forEach((p: any) => {
+            if (p.category_id) productIdsWithSiteDisplay.add(p.category_id);
+          });
+        }
+        
+        const categoriesWithProducts = (categoriesData as any[])?.filter((category: any) => 
+          productIdsWithSiteDisplay.has(category.id)
         ) || [];
         setCategories(categoriesWithProducts);
+        
+        // Auto-select first base category and its first category if available
+        const baseCats = (baseCategoriesData as any[]) || [];
+        if (baseCats.length > 0 && !selectedBaseCategory) {
+          const firstBaseCategory = baseCats[0];
+          setSelectedBaseCategory(firstBaseCategory.id);
+          
+          // Auto-select first category of the first base category
+          if (categoriesWithProducts.length > 0) {
+            const baseCategoryCats = categoriesWithProducts.filter((cat: any) => cat.base_category_id === firstBaseCategory.id);
+            if (baseCategoryCats.length > 0 && !selectedCategory) {
+              const firstCategory = baseCategoryCats[0];
+              setSelectedCategory(firstCategory.id);
+            }
+          }
+        }
       }
       
       // Load products
@@ -478,12 +629,14 @@ const Landing = () => {
     setIsFiltering(true);
     
     let filtered = products.filter(product => {
-      // Filter by category
-      const normalizedCategory = product.category 
-        ? product.category.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
-        : "Others";
-      
-      if (normalizedCategory !== selectedCategory) return false;
+      // Filter by category ID if available, otherwise by category name
+      const productCategoryId = (product as any).category_id;
+      if (selectedCategory) {
+        if (productCategoryId !== selectedCategory) return false;
+      } else {
+        // If no category selected, show all products (when base category is selected but no category yet)
+        return true;
+      }
 
       // Filter by search query
       if (searchQuery) {
@@ -1220,41 +1373,99 @@ const Landing = () => {
             </div>
           </div>
         )}
-        {/* Mobile Category Switcher */}
-        <div className="sm:hidden mb-6">
-          <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => handleCategoryChange(category.display_name)}
-                className={`flex-shrink-0 px-6 py-3 rounded-full font-medium transition-all duration-200 ${
-                  selectedCategory === category.display_name
-                    ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg'
-                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                }`}
-              >
-                {category.display_name}
-              </button>
-            ))}
+        {/* Base Category Navigation with Hover Dropdowns */}
+        {baseCategories.length > 0 && (
+          <div className="mb-8 w-full border-b border-gray-200 pb-2">
+            <NavigationMenu className="w-full">
+              <NavigationMenuList className="flex flex-nowrap justify-start items-center gap-0 overflow-x-auto w-full">
+                {baseCategories.map((baseCategory) => {
+                  const childCategories = categories.filter(cat => cat.base_category_id === baseCategory.id);
+                  return (
+                    <NavigationMenuItem key={baseCategory.id} className="flex-shrink-0">
+                      {childCategories.length > 0 ? (
+                        <>
+                          <NavigationMenuTrigger 
+                            ref={(el) => {
+                              if (el) {
+                                navigationMenuRefs.current[baseCategory.id] = el;
+                              }
+                            }}
+                            onClick={(e) => handleMobileBaseCategoryClick(baseCategory.id, e)}
+                            className={`${navigationMenuTriggerStyle()} ${
+                              selectedBaseCategory === baseCategory.id
+                                ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md'
+                                : 'bg-transparent hover:bg-amber-50 text-gray-800'
+                            } font-medium px-5 py-3 text-sm uppercase tracking-wide whitespace-nowrap rounded-lg transition-all duration-200 [&>svg]:hidden cursor-pointer`}
+                          >
+                            {baseCategory.display_name}
+                          </NavigationMenuTrigger>
+                          <NavigationMenuContent>
+                            <div className="p-2 min-w-[220px]">
+                              <div className="grid gap-0.5">
+                                {childCategories.map((category) => (
+                                  <button
+                                    key={category.id}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      
+                                      // Close dropdown immediately
+                                      setOpenBaseCategoryDropdown(null);
+                                      
+                                      // Force close NavigationMenu by dispatching Escape key
+                                      setTimeout(() => {
+                                        const triggerRef = navigationMenuRefs.current[baseCategory.id];
+                                        if (triggerRef) {
+                                          // Dispatch escape key to close the dropdown
+                                          const escapeEvent = new KeyboardEvent('keydown', {
+                                            key: 'Escape',
+                                            code: 'Escape',
+                                            keyCode: 27,
+                                            which: 27,
+                                            bubbles: true,
+                                            cancelable: true
+                                          });
+                                          triggerRef.dispatchEvent(escapeEvent);
+                                          // Also blur to ensure it closes
+                                          triggerRef.blur();
+                                        }
+                                      }, 0);
+                                      
+                                      handleBaseCategoryChange(baseCategory.id);
+                                      handleCategoryChange(category.id);
+                                    }}
+                                    className={`text-left px-4 py-2.5 rounded-lg text-sm transition-colors w-full ${
+                                      selectedCategory === category.id
+                                        ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white font-semibold shadow-sm'
+                                        : 'hover:bg-amber-50 text-gray-700'
+                                    }`}
+                                  >
+                                    {category.display_name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </NavigationMenuContent>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleBaseCategoryChange(baseCategory.id)}
+                          className={`${navigationMenuTriggerStyle()} ${
+                            selectedBaseCategory === baseCategory.id
+                              ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md'
+                              : 'bg-transparent hover:bg-amber-50 text-gray-800'
+                          } font-medium px-5 py-3 text-sm uppercase tracking-wide whitespace-nowrap rounded-lg transition-all duration-200`}
+                        >
+                          {baseCategory.display_name}
+                        </button>
+                      )}
+                    </NavigationMenuItem>
+                  );
+                })}
+              </NavigationMenuList>
+            </NavigationMenu>
           </div>
-        </div>
-
-        {/* Desktop Tabs */}
-        <div className="hidden sm:block">
-          <Tabs value={selectedCategory} onValueChange={handleCategoryChange} className="w-full">
-            <TabsList className="flex w-full justify-center mb-8 bg-amber-100/70 backdrop-blur-sm p-2 rounded-xl shadow-sm gap-2">
-            {categories.map((category) => (
-              <TabsTrigger 
-                key={category.id} 
-                value={category.display_name}
-                className="flex-1 min-w-0 px-6 py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white rounded-lg font-medium transition-all duration-200 text-sm sm:text-base"
-              >
-                {category.display_name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          </Tabs>
-        </div>
+        )}
         
         {/* Product Grid with Crossfade */}
         <div className="relative min-h-[400px]">
